@@ -355,7 +355,18 @@ export async function showSetupWizard(ctx: ExtensionCommandContext, signal?: Abo
 		{ signal },
 	);
 	if (signal?.aborted || !preset || preset === "Cancel") return false;
-	const targetName = await chooseInitialTargetName(ctx, signal);
+	const targetName = await requiredInput(
+		ctx,
+		[
+			"Name this sync setup",
+			"",
+			"Examples: home, work, personal. Leave blank to use home.",
+			"Used in suggested storage paths and Git branches.",
+			"Sync content and automatic sync are chosen separately.",
+		].join("\n"),
+		"home",
+		signal,
+	);
 	if (!targetName) return false;
 	if (preset === "WebDAV") {
 		const saved = await showWebDavSetup(ctx, targetName, signal);
@@ -840,18 +851,6 @@ interface ChosenRemoteLocation {
 	connectionName: string;
 	bucket: string;
 	path: string;
-}
-
-async function chooseInitialTargetName(ctx: ExtensionCommandContext, signal?: AbortSignal) {
-	const purpose = await ctx.ui.select(
-		"What will this sync setup be used for?",
-		["Personal / Home", "Work", "Custom", "Cancel"],
-		{ signal },
-	);
-	if (!purpose || purpose === "Cancel") return undefined;
-	if (purpose === "Personal / Home") return "home";
-	if (purpose === "Work") return "work";
-	return requiredInput(ctx, "Name this sync setup", "default", signal);
 }
 
 async function chooseInitialRemoteLocation(
