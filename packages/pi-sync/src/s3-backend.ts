@@ -257,7 +257,7 @@ export function snapshotKey(config: ResolvedS3Backend, id: string) {
 }
 
 export function storageRoot(config: ResolvedS3Backend) {
-	return config.destination.prefix;
+	return config.destination.prefix === "./" ? "" : config.destination.prefix;
 }
 
 export function pointerFor(
@@ -444,6 +444,7 @@ function assertSafeDestination(config: ResolvedS3Backend) {
 		["prefix", config.destination.prefix, true],
 		["namespace", config.destination.namespace, false],
 	] as const) {
+		if (label === "prefix" && value === "./") continue;
 		if (
 			(!allowEmpty && value.length === 0) ||
 			value.includes("\\") ||

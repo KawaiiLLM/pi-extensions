@@ -16,7 +16,7 @@ import {
 	showEditWebDavTarget,
 	showWebDavSetup,
 } from "../src/webdav-ui.js";
-import { v3S3Settings, withTempHome } from "./helpers.js";
+import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
 
 test("first WebDAV setup stores masked credentials in the exact version 3 shape", async () => {
 	await withTempHome(async (agentDir) => {
@@ -125,6 +125,32 @@ test("WebDAV setup edit persists one complete path and rejects unsafe paths", as
 		assert.equal(await showEditWebDavTarget(invalid.ctx, await loadPartialConfig("work")), false);
 		assert.match(invalid.notifications.at(-1)?.message ?? "", /Invalid pi-sync WebDAV path/u);
 		assert.deepEqual(readFileSync(localConfigPath()), before);
+	});
+});
+
+test("WebDAV new setups default to root while edits keep the existing nested path", async () => {
+	await withTempHome(async (agentDir) => {
+		mkdirSync(agentDir, { recursive: true });
+		writeFileSync(localConfigPath(), JSON.stringify(v3WebDavSettings()), { mode: 0o600 });
+		const titles: string[] = [];
+		const choices = ["Minimal settings", "Add sync setup", "Save sync setup"];
+		const { ctx } = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			input: async (title: string) => {
+				titles.push(title);
+				return "";
+			},
+			select: async () => choices.shift(),
+		});
+		assert.equal(await showAddWebDavTarget(ctx, "work", "dav"), true);
+		assert.equal((await loadConfig("work")).storagePath, "./");
+		const before = readFileSync(localConfigPath());
+		assert.equal(await showEditWebDavTarget(ctx, await loadPartialConfig("home")), true);
+		assert.equal((await loadConfig("home")).storagePath, "pi-sync/home");
+		assert.deepEqual(readFileSync(localConfigPath()), before);
+		assert.match(titles[0], /Default: \.\//u);
+		assert.match(titles[1], /Default: pi-sync\/home/u);
 	});
 });
 

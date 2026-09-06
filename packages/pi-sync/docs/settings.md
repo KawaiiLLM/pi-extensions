@@ -108,9 +108,13 @@ Temporary S3 credentials may additionally include `credentials.sessionToken`.
 - **WebDAV connection:** `type`, HTTPS `url`, and `credentials.username` / `credentials.password`.
 - **WebDAV setup storage:** `connection` and complete relative `path`; `bucket` and `branch` are rejected.
 
-Git accepts `.` or `./` for the repository root; both resolve to `./` and share the same local state identity.
-The setup wizard suggests `main` and `./` without changing existing settings or the required-field rules for manually written documents.
-WebDAV and S3/R2 paths remain non-empty relative folders or prefixes, with `pi-sync/<setup>` suggested during setup.
+Every backend accepts `.` or `./` for its root; both resolve to `./` and share the same local state and backend identity.
+New setups default to `./`, independently of the setup name; Git also suggests branch `main`.
+For WebDAV, root means directly under the configured collection URL, not the server root.
+For R2/S3, it means the selected bucket root, with no literal `./` object-key prefix.
+WebDAV and R2/S3 write `latest.json`, `history.json`, and `snapshots/` there; use separate relative folders or prefixes for independent setups sharing storage.
+Existing settings, paths, and local state identities remain unchanged. Editing a setup defaults to its current path.
+Manually written documents still require an explicit non-empty `storage.path`; use `./` rather than an empty string for root.
 Git branches are exclusively managed by pi-sync; an existing branch containing unrelated files is rejected rather than overwritten.
 
 Every setup requires `sync.include` and explicit `sync.automatic`.

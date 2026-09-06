@@ -1,13 +1,8 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { normalizeStoragePath, validateConfigName } from "./config.js";
+import { validateConfigName } from "./config.js";
 import { errorMessage, safeTerminalText } from "./manager-helpers.js";
-import { normalizeWebDavPath } from "./webdav-config.js";
 
-export async function promptInitialSetupName(
-	ctx: ExtensionCommandContext,
-	preset: string,
-	signal?: AbortSignal,
-) {
+export async function promptInitialSetupName(ctx: ExtensionCommandContext, signal?: AbortSignal) {
 	while (!signal?.aborted) {
 		const hint = "For example: home or work. Leave blank for default.";
 		// Pi styles the whole input title as accent; give only the guidance a muted role.
@@ -24,16 +19,10 @@ export async function promptInitialSetupName(
 		if (name.includes("<") || name.includes(">")) return undefined;
 		try {
 			validateConfigName(name, "sync setup");
-			// Validate the same suggestions the backend prompts will offer, without changing the name.
-			const suggestedPath = `pi-sync/${name}`;
-			if (preset !== "Git") normalizeStoragePath(suggestedPath);
-			if (preset === "WebDAV") {
-				normalizeWebDavPath(suggestedPath);
-			}
 			return name;
 		} catch (error) {
 			ctx.ui.notify(
-				`This name cannot be used for the sync setup or its suggested storage location. ${safeTerminalText(errorMessage(error))} Enter another name (for example, default).`,
+				`This name cannot be used for the sync setup. ${safeTerminalText(errorMessage(error))} Enter another name (for example, default).`,
 				"warning",
 			);
 		}

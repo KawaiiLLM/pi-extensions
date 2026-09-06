@@ -60,7 +60,7 @@ test.each([
 				}
 			},
 		});
-		assert.equal(await promptInitialSetupName(ctx, "Git"), "default");
+		assert.equal(await promptInitialSetupName(ctx), "default");
 		assert.equal(submitted, true);
 		assert.ok(lines.every((line) => visibleWidth(line) <= width));
 		const text = stripVTControlCharacters(lines.join(" ")).replace(/\s+/gu, " ");
@@ -93,7 +93,7 @@ test("RPC name input keeps guidance free of terminal styling", async () => {
 			return "";
 		},
 	});
-	assert.equal(await promptInitialSetupName(ctx, "Git"), "default");
+	assert.equal(await promptInitialSetupName(ctx), "default");
 	assert.equal(
 		renderedTitle,
 		"Sync setup name\nFor example: home or work. Leave blank for default.",
@@ -122,19 +122,12 @@ test("Pi core name input cancellation does not accept the default", async () => 
 			}
 		},
 	});
-	assert.equal(await promptInitialSetupName(ctx, "Git"), undefined);
+	assert.equal(await promptInitialSetupName(ctx), undefined);
 	assert.equal(cancelled, true);
 });
 
 const presets = ["Cloudflare R2", "Other S3-compatible storage", "WebDAV", "Git"];
 const invalidCommonNames = [
-	".",
-	"..",
-	"team/../work",
-	"team/./work",
-	"team//work",
-	"/work",
-	"team\\work",
 	"__proto__",
 	"prototype",
 	"constructor",
@@ -142,7 +135,14 @@ const invalidCommonNames = [
 	"work\u001b[31m",
 	"work\u0085profile",
 ];
-const independentGitNames = [
+const independentNames = [
+	".",
+	"..",
+	"team/../work",
+	"team/./work",
+	"team//work",
+	"/work",
+	"team\\work",
 	"work profile",
 	"work..profile",
 	"work@{profile}",
@@ -161,19 +161,9 @@ const independentGitNames = [
 	"work/",
 ];
 
-const invalidCases = [
-	...presets
-		.filter((preset) => preset !== "Git")
-		.flatMap((preset) => invalidCommonNames.map((name) => ({ preset, name }))),
-	...[
-		"__proto__",
-		"prototype",
-		"constructor",
-		"a".repeat(101),
-		"work\u001b[31m",
-		"work\u0085profile",
-	].map((name) => ({ preset: "Git", name })),
-];
+const invalidCases = presets.flatMap((preset) =>
+	invalidCommonNames.map((name) => ({ preset, name })),
+);
 
 test.each(invalidCases)(
 	"$preset rejects name $name before backend prompts and allows correction",
@@ -209,7 +199,7 @@ test.each(invalidCases)(
 );
 
 const validCases = [
-	...independentGitNames.map((name) => ({ preset: "Git", name })),
+	...presets.flatMap((preset) => independentNames.map((name) => ({ preset, name }))),
 	...presets.flatMap((preset) =>
 		["default", "team/work", "-work", "refs/work", "@", "工作", "a".repeat(100)].map((name) => ({
 			preset,

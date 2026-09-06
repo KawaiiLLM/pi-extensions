@@ -250,7 +250,7 @@ export class WebDavSyncBackend implements SyncBackend {
 
 	private async runCapabilityProbe(signal?: AbortSignal) {
 		throwIfAborted(signal);
-		const probeCollection = `${rootPath(this.config)}/.pi-sync-probes/${randomUUID()}`;
+		const probeCollection = joinRemote(rootPath(this.config), ".pi-sync-probes", randomUUID());
 		const probe = `${probeCollection}/conditional.txt`;
 		const client = new WebDavClient(this.config, signal);
 		let created = false;
@@ -382,7 +382,7 @@ export class WebDavSyncBackend implements SyncBackend {
 }
 
 export function rootPath(config: ResolvedWebDavBackend) {
-	return config.destination.path;
+	return config.destination.path === "./" ? "" : config.destination.path;
 }
 
 export function latestPath(config: ResolvedWebDavBackend) {
@@ -410,7 +410,7 @@ export function webDavBackendIdentity(config: ResolvedWebDavBackend) {
 
 function webDavStorageLocation(config: ResolvedWebDavBackend) {
 	const url = new URL(secretFreeUrl(config.profile.url));
-	return `${url.host} · ${rootPath(config)}`;
+	return `${url.host} · ${config.destination.path}`;
 }
 
 function pointerFor(
@@ -586,7 +586,11 @@ function assertSafeDestination(config: ResolvedWebDavBackend) {
 	const url = new URL(config.profile.url);
 	if (url.username || url.password || url.search || url.hash)
 		throw new Error("Invalid WebDAV URL.");
-	for (const value of [config.destination.path, config.destination.namespace]) {
+	for (const [label, value] of [
+		["path", config.destination.path],
+		["namespace", config.destination.namespace],
+	]) {
+		if (label === "path" && value === "./") continue;
 		if (
 			!value ||
 			value.includes("\\") ||

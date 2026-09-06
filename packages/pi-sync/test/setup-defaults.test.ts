@@ -37,11 +37,12 @@ const fixtures = [
 			"Keep sessions off (recommended)",
 			"Save setup",
 		],
-		path: "pi-sync/default",
+		path: "./",
 		hints: [
 			"Example: https://cloud.example.com/remote.php/dav/files/user",
 			"collection URL",
-			"Default: pi-sync/default",
+			"Default: ./",
+			"collection root",
 		],
 	},
 	...["Cloudflare R2", "Other S3-compatible storage"].map((preset) => ({
@@ -64,13 +65,14 @@ const fixtures = [
 			"Keep sessions off (recommended)",
 			"Save sync setup",
 		],
-		path: "pi-sync/default",
+		path: "./",
 		hints: [
 			"Example: https://",
 			"Example: pi-sync",
 			"bucket must already exist",
 			"Object-key prefix",
-			"Default: pi-sync/default",
+			"Default: ./",
+			"bucket root",
 			...(preset === "Cloudflare R2" ? [] : ["Default: us-east-1"]),
 		],
 	})),
@@ -128,6 +130,7 @@ for (const fixture of fixtures) {
 			assert.equal(config.setupName, "default");
 			assert.equal(config.connectionName, "default");
 			assert.equal(config.storagePath, fixture.path);
+			assert.equal(config.snapshotIdentity, "root");
 			if (config.backend.type === "git") assert.equal(config.backend.destination.branch, "main");
 			if (config.backend.type === "s3")
 				assert.equal(
@@ -186,6 +189,28 @@ for (const fixture of fixtures) {
 		});
 	});
 }
+
+test.each(
+	fixtures.filter((fixture) => fixture.preset.includes("R2") || fixture.preset.includes("S3")),
+)("$preset ignores a storage-location answer after session replacement", async (fixture) => {
+	await withTempHome(async () => {
+		const controller = new AbortController();
+		let inputCount = 0;
+		const { ctx } = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			input: async () => fixture.inputs[inputCount++],
+			select: async (title: string) => {
+				if (!title.startsWith("Choose storage location")) return fixture.preset;
+				controller.abort(new DOMException("Session replaced", "AbortError"));
+				return "Customize remote location";
+			},
+		});
+		assert.equal(await showSetupWizard(ctx, controller.signal), false);
+		assert.equal(inputCount, fixture.inputs.indexOf("existing-bucket"));
+		assert.equal(existsSync(localConfigPath()), false);
+	});
+});
 
 test.each(["", "   "])(
 	"example-only inputs reject blank %j instead of saving an example",

@@ -93,7 +93,7 @@ test.each([
 		assert.deepEqual(saved?.syncSetups[name].storage, {
 			connection: name,
 			bucket: "pi-sync",
-			path: `pi-sync/${name}`,
+			path: "./",
 		});
 		assert.equal(
 			inputTitles[0],
@@ -104,7 +104,7 @@ test.each([
 			["Cloudflare R2 endpoint", "Access key ID"],
 		);
 		assert.match(inputTitles[1], /Example: https:\/\/<account-id>\.r2\.cloudflarestorage\.com/u);
-		assert.ok(rendered.join("\n").includes(`Storage location: pi-sync/${name}`));
+		assert.ok(rendered.join("\n").includes("Storage location: ./"));
 		assert.doesNotMatch(rendered.join("\n"), /What will this sync setup be used for/u);
 		assert.doesNotMatch(rendered.join("\n"), /profiles\/|secret-key|access-key/u);
 	});
@@ -327,7 +327,7 @@ test("replacing stored S3 credentials drops the prior session token", async () =
 	});
 });
 
-test("S3 manager reuses a connection and derives a separate complete path", async () => {
+test("S3 manager reuses a connection and defaults a new setup to the bucket root", async () => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
 		writeSettings();
@@ -338,7 +338,7 @@ test("S3 manager reuses a connection and derives a separate complete path", asyn
 			"Sync setups…",
 			"Add sync setup",
 			"r2",
-			"Same bucket as “home” (recommended)",
+			"Same bucket as “home”",
 			"Recommended Pi settings",
 			"Add sync setup",
 			undefined,
@@ -358,8 +358,10 @@ test("S3 manager reuses a connection and derives a separate complete path", asyn
 		await mock.commands.get("sync")?.handler("", ctx);
 		const config = await loadConfig("work");
 		assert.equal(config.connectionName, "r2");
-		assert.equal(config.storagePath, "pi-sync/work");
-		assert.match(rendered.join("\n"), /Remote path: pi-sync\/work/u);
+		assert.equal(config.storagePath, "./");
+		assert.equal((await loadConfig("home")).storagePath, "pi-sync/home");
+		assert.match(rendered.join("\n"), /Remote path: \.\//u);
+		assert.match(rendered.join("\n"), /different path or bucket for independent setups/u);
 		assert.doesNotMatch(rendered.join("\n"), /profiles\//u);
 	});
 });

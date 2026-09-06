@@ -14,7 +14,6 @@ import {
 	normalizeWebDavPath,
 	normalizeWebDavUrl,
 	validateWebDavCredentials,
-	validateWebDavNamespace,
 } from "./webdav-config.js";
 
 export async function showWebDavSetup(
@@ -28,7 +27,7 @@ export async function showWebDavSetup(
 	if (!username) return false;
 	const password = await awaitActive(signal, promptSecret(ctx, "WebDAV password", { signal }));
 	if (password === undefined) return false;
-	const location = await chooseDestination(ctx, targetName, signal);
+	const location = await chooseDestination(ctx, signal);
 	if (!location) return false;
 	const connection = validateConnection(ctx, url, username, password);
 	const destination = validateDestination(ctx, location.path);
@@ -97,7 +96,7 @@ export async function showAddWebDavTarget(
 	profile: string,
 	signal?: AbortSignal,
 ) {
-	const location = await chooseDestination(ctx, name, signal);
+	const location = await chooseDestination(ctx, signal);
 	if (!location) return false;
 	const destination = validateDestination(ctx, location.path);
 	if (!destination) return false;
@@ -272,12 +271,8 @@ export async function showEditWebDavStorageProfile(
 	return true;
 }
 
-async function chooseDestination(
-	ctx: ExtensionCommandContext,
-	targetName: string,
-	signal?: AbortSignal,
-) {
-	const remotePath = await requiredInput(ctx, WEBDAV_PATH_TITLE, `pi-sync/${targetName}`, signal);
+async function chooseDestination(ctx: ExtensionCommandContext, signal?: AbortSignal) {
+	const remotePath = await requiredInput(ctx, WEBDAV_PATH_TITLE, "./", signal);
 	return remotePath ? validateDestination(ctx, remotePath) : undefined;
 }
 
@@ -310,7 +305,7 @@ async function chooseSessions(ctx: ExtensionCommandContext, signal?: AbortSignal
 }
 
 const WEBDAV_PATH_TITLE =
-	"WebDAV storage path\n\nFolder relative to the collection URL, not your local filesystem.\nA separate folder keeps this setup's snapshots apart from other content.";
+	"WebDAV storage path\n\nFolder relative to the collection URL, not your local filesystem.\n./ uses the collection root. Use different folders for independent setups.";
 
 async function promptWebDavUrl(
 	ctx: ExtensionCommandContext,
@@ -376,15 +371,9 @@ function validateConnection(
 	}
 }
 
-function validateDestination(ctx: ExtensionCommandContext, path: string, namespace?: string) {
+function validateDestination(ctx: ExtensionCommandContext, path: string) {
 	try {
-		const basePath = normalizeWebDavPath(path);
-		const normalizedPath = namespace
-			? normalizeWebDavPath(`${basePath}/${namespace.trim()}`)
-			: basePath;
-		const resolvedNamespace = normalizedPath.slice(normalizedPath.lastIndexOf("/") + 1);
-		validateWebDavNamespace(resolvedNamespace);
-		return { path: normalizedPath, namespace: resolvedNamespace };
+		return { path: normalizeWebDavPath(path) };
 	} catch (error) {
 		ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
 		return undefined;
