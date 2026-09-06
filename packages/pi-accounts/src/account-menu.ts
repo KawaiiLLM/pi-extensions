@@ -53,6 +53,7 @@ type ProviderMenuState = {
 	id: AccountProviderId;
 	adapter: AccountProviderAdapter;
 	active: string | undefined;
+	defaultAccount: string | undefined;
 	selectionInvalid: boolean;
 	accounts: Record<string, StoredOAuthCredential>;
 };
@@ -78,8 +79,18 @@ export async function showAccountsMenu(
 		hasAnyStoredAccount: boolean;
 		selectionError?: string;
 	};
-	type Screen = "main" | "login-providers" | "switch-providers" | "switch-accounts" | "remove";
+	type Screen =
+		| "main"
+		| "login-providers"
+		| "switch-providers"
+		| "switch-accounts"
+		| "default-providers"
+		| "default-accounts"
+		| "remove";
 	type Action =
+		| "default-route"
+		| "default-provider"
+		| "default-account"
 		| "login-route"
 		| "login-provider"
 		| "switch-current"
@@ -106,12 +117,20 @@ export async function showAccountsMenu(
 					)
 						.split("\n")
 						.slice(1),
-					items: buildAccountMainItems(
-						state.states,
-						currentState,
-						state.hasAnyStoredAccount,
-						state.selectionError !== undefined,
-					),
+					items: [
+						...buildAccountMainItems(
+							state.states,
+							currentState,
+							state.hasAnyStoredAccount,
+							state.selectionError !== undefined,
+						),
+						{
+							id: "default",
+							label: "Set default account",
+							description: "For new sessions only; keeps this session unchanged",
+							action: "default-route",
+						},
+					],
 					hint: "close",
 				};
 			},
@@ -164,6 +183,48 @@ export async function showAccountsMenu(
 					hint: "back",
 				};
 			},
+			// One scoped preference uses the existing action picker rather than a separate Settings
+			// manager; current-session status stays in the main summary. No custom key handling.
+			"default-providers": ({ state }) => ({
+				kind: "actions",
+				title: "Default accounts for new sessions",
+				lines: ["User-wide settings. Existing sessions keep their own accounts."],
+				items: sortedProviderStates(state.states).map((provider) => ({
+					id: provider.id,
+					label: provider.adapter.displayName,
+					description: `Default: ${provider.defaultAccount ?? "Pi built-in login"}`,
+					action: "default-provider",
+				})),
+				hint: "back",
+			}),
+			"default-accounts": ({ state }) => {
+				const provider = selectedProviderId ? state.states.get(selectedProviderId) : undefined;
+				return {
+					kind: "actions",
+					title: `Default ${provider?.adapter.displayName ?? "provider"} account`,
+					lines: [
+						`Saved default: ${provider?.defaultAccount ?? "Pi built-in login"}`,
+						"Applies to new sessions only. Selecting an account saves immediately.",
+					],
+					items: provider
+						? [
+								{
+									id: "pi-login",
+									label: "Pi built-in login",
+									action: "default-account" as const,
+									disabled: provider.defaultAccount === undefined,
+								},
+								...accountNames(provider).map((name) => ({
+									id: accountItemId(name),
+									label: name,
+									action: "default-account" as const,
+									disabled: name === provider.defaultAccount,
+								})),
+							]
+						: [],
+					hint: "back",
+				};
+			},
 			remove: ({ state }) => ({
 				kind: "actions",
 				title: "Remove account",
@@ -176,6 +237,39 @@ export async function showAccountsMenu(
 			}),
 		},
 		actions: {
+			"default-route": async () => ({ kind: "to", screen: "default-providers" }),
+			"default-provider": async ({ itemId }) => {
+				if (!isAccountProviderId(itemId)) return { kind: "rejected" };
+				selectedProviderId = itemId;
+				return { kind: "to", screen: "default-accounts" };
+			},
+			"default-account": async ({ itemId, signal }) => {
+				const providerId = selectedProviderId;
+				if (!providerId) return { kind: "rejected" };
+				const isCurrent = () => owner.isCurrent() && !signal.aborted;
+				if (!isCurrent()) return { kind: "close" };
+				try {
+					const saved = await store.updateProvider(providerId, (state) => {
+						if (!isCurrent()) throw new DOMException("Menu closed", "AbortError");
+						const name = Object.keys(state.accounts).find((name) => accountItemId(name) === itemId);
+						if (itemId !== "pi-login" && !name) throw new Error("Account no longer exists");
+						return { ...state, active: itemId === "pi-login" ? undefined : name };
+					});
+					if (!isCurrent()) return { kind: "close" };
+					ctx.ui.notify(
+						`Default ${requireAdapter(adapters, providerId).displayName} account for new sessions: ${saved.active ?? "Pi built-in login"}. This session is unchanged.`,
+						"info",
+					);
+					return { kind: "close" };
+				} catch {
+					if (!isCurrent()) return { kind: "close" };
+					ctx.ui.notify(
+						"Could not save the default account. Check account storage and try again.",
+						"error",
+					);
+					return { kind: "rejected" };
+				}
+			},
 			"login-route": async () => ({ kind: "to", screen: "login-providers" }),
 			"login-provider": async ({ itemId, signal }) => {
 				if (!isAccountProviderId(itemId)) return { kind: "rejected" };
@@ -272,6 +366,7 @@ async function readProviderMenuStates(
 			id,
 			adapter: requireAdapter(adapters, id),
 			active,
+			defaultAccount: state.active,
 			selectionInvalid:
 				session.error !== undefined ||
 				(active !== undefined && !getOwnCredential(state.accounts, active)),

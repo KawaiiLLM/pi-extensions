@@ -29,11 +29,14 @@ const MIGRATION_TEMP_STALE_MS = 30_000;
 export type StoredOAuthCredential = OAuthCredential;
 
 export type ProviderAccountsData = {
+	[key: string]: unknown;
+	/** Default for sessions without a saved provider selection; not the current session account. */
 	active?: string;
 	accounts: Record<string, StoredOAuthCredential>;
 };
 
 export type AccountsData = {
+	[key: string]: unknown;
 	version: 1;
 	providers: Record<string, ProviderAccountsData>;
 };
@@ -48,7 +51,9 @@ export class AccountStore {
 	}
 
 	async readAsync(): Promise<AccountsData> {
-		return this.backend.readAsync(async (current) => parseAccountsData(current));
+		return this.serialized(() =>
+			this.backend.readAsync(async (current) => parseAccountsData(current)),
+		);
 	}
 
 	async write(data: AccountsData): Promise<void> {
@@ -134,7 +139,7 @@ export function parseAccountName(
 }
 
 export function parseAccountsData(raw: string | undefined): AccountsData {
-	if (!raw?.trim()) return emptyAccountsData();
+	if (raw === undefined) return emptyAccountsData();
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(raw) as unknown;
@@ -161,7 +166,7 @@ function normalizeAccountsData(value: unknown): AccountsData {
 			writable: true,
 		});
 	}
-	return { version: 1, providers };
+	return { ...value, version: 1, providers };
 }
 
 function normalizeProviderState(value: unknown): ProviderAccountsData {
@@ -180,7 +185,10 @@ function normalizeProviderState(value: unknown): ProviderAccountsData {
 			writable: true,
 		});
 	}
-	return active ? { active, accounts } : { accounts };
+	const state: ProviderAccountsData = { ...value, accounts };
+	if (active) state.active = active;
+	else delete state.active;
+	return state;
 }
 
 export function normalizeStoredCredential(
@@ -453,9 +461,7 @@ function emptyProviderState(): ProviderAccountsData {
 
 function cloneProviderState(state: ProviderAccountsData | undefined): ProviderAccountsData {
 	if (!state) return emptyProviderState();
-	return state.active
-		? { active: state.active, accounts: defineOwnMap(state.accounts) }
-		: { accounts: defineOwnMap(state.accounts) };
+	return { ...state, accounts: defineOwnMap(state.accounts) };
 }
 
 export function defineOwnMap<T>(source: Record<string, T>): Record<string, T> {

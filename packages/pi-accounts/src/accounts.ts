@@ -626,6 +626,7 @@ async function removeAccount(
 		const accounts = defineOwnMap(state.accounts);
 		delete accounts[parsed.name];
 		return {
+			...state,
 			active: state.active === parsed.name ? undefined : state.active,
 			accounts,
 		};
