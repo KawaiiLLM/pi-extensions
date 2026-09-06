@@ -143,6 +143,10 @@ export async function showSyncManager(
 						{
 							origin: "sync",
 							runRoute,
+							onSelectionResolved: () => {
+								if (!sessionSignal?.aborted && options.getObservation?.() === observation)
+									options.onObservationInvalidated?.();
+							},
 						},
 					);
 					if (sessionSignal?.aborted) return { kind: "close" };
