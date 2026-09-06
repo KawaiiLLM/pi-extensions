@@ -41,10 +41,16 @@ Extensions run with Pi's permissions, so install only packages from sources you 
 ## 🚀 Quick start
 
 Run `/sync` and choose **Set up sync**.
+Name the setup once; its first storage connection uses the same name.
+Input prompts show examples or an explicit default that you can accept by submitting an empty value; cancelling never accepts a default.
+Remote URLs, endpoints, usernames, and credentials require your own values, not the displayed examples.
+Git suggests branch `main` and storage path `./` (repository root); WebDAV and R2/S3 suggest `pi-sync/<setup>` to separate snapshots in shared storage.
 Before saving, review the storage connection, exact remote path, included content, automatic-sync choice, and masked credentials.
 
 Buckets and remote repositories must already exist.
 Git uses existing non-interactive SSH or credential-helper configuration and never stores Git credentials.
+It owns the entire selected branch: use an empty repository or a new branch if `main` already contains unrelated content.
+At `./`, Git stores `manifest.json` and `files/` at the repository root; it does not modify your local working tree.
 
 ## 🧭 Manager, conflicts, and recovery
 

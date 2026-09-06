@@ -1,4 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { requiredInput, requiredValueInput } from "./manager-helpers.js";
 import { promptSecret } from "./secret-input.js";
 import {
 	addStorageConnection,
@@ -21,14 +22,9 @@ export async function showWebDavSetup(
 	targetName: string,
 	signal?: AbortSignal,
 ) {
-	const url = await requiredInput(
-		ctx,
-		"WebDAV collection URL",
-		"https://cloud.example.com/remote.php/dav/files/user",
-		signal,
-	);
+	const url = await promptWebDavUrl(ctx, signal);
 	if (!url) return false;
-	const username = await requiredInput(ctx, "WebDAV username", "user", signal);
+	const username = await requiredValueInput(ctx, "WebDAV username", "user", signal);
 	if (!username) return false;
 	const password = await awaitActive(signal, promptSecret(ctx, "WebDAV password", { signal }));
 	if (password === undefined) return false;
@@ -48,14 +44,14 @@ export async function showWebDavSetup(
 	if (!automatic || automatic === "Cancel") return false;
 	const sessions = await chooseSessions(ctx, signal);
 	if (sessions === undefined) return false;
-	const profileName = "webdav";
+	const profileName = targetName;
 	const review = await select(
 		ctx,
 		[
 			"Review WebDAV setup",
 			"",
 			`Sync setup: ${safe(targetName)}`,
-			`Storage connection: ${profileName} (WebDAV)`,
+			`Storage connection: ${safe(profileName)} (WebDAV)`,
 			`URL: ${displayUrl(connection.url)}`,
 			`Storage location: ${safe(destination.path)}`,
 			"Username: stored in the private settings file (value hidden)",
@@ -135,7 +131,7 @@ export async function showEditWebDavTarget(
 	partial: PartialConfig,
 	signal?: AbortSignal,
 ) {
-	const remotePath = await requiredInput(ctx, "WebDAV storage path", partial.storagePath, signal);
+	const remotePath = await requiredInput(ctx, WEBDAV_PATH_TITLE, partial.storagePath, signal);
 	if (!remotePath) return false;
 	const destination = validateDestination(ctx, remotePath);
 	if (!destination) return false;
@@ -168,14 +164,9 @@ export async function showAddWebDavStorageProfile(
 ) {
 	const name = await requiredInput(ctx, "Name this storage connection", "webdav", signal);
 	if (!name) return false;
-	const url = await requiredInput(
-		ctx,
-		"WebDAV collection URL",
-		"https://cloud.example.com/dav",
-		signal,
-	);
+	const url = await promptWebDavUrl(ctx, signal);
 	if (!url) return false;
-	const username = await requiredInput(ctx, "WebDAV username", "user", signal);
+	const username = await requiredValueInput(ctx, "WebDAV username", "user", signal);
 	if (!username) return false;
 	const password = await awaitActive(signal, promptSecret(ctx, "WebDAV password", { signal }));
 	if (password === undefined) return false;
@@ -212,17 +203,16 @@ export async function showEditWebDavStorageProfile(
 	signal?: AbortSignal,
 	affectedSetups?: string[],
 ) {
-	const url = await requiredInput(
+	const url = await promptWebDavUrl(
 		ctx,
-		"WebDAV collection URL",
-		String(profile.url ?? "https://cloud.example.com/dav"),
 		signal,
+		typeof profile.url === "string" ? profile.url : undefined,
 	);
 	if (!url) return false;
-	const username = await requiredInput(
+	const username = await requiredValueInput(
 		ctx,
-		"WebDAV username",
-		String(profile.username ?? "user"),
+		"WebDAV username\n\nEnter the account username; the stored value is hidden.",
+		"user",
 		signal,
 	);
 	if (!username) return false;
@@ -287,12 +277,7 @@ async function chooseDestination(
 	targetName: string,
 	signal?: AbortSignal,
 ) {
-	const remotePath = await requiredInput(
-		ctx,
-		"WebDAV storage path",
-		`pi-sync/${targetName}`,
-		signal,
-	);
+	const remotePath = await requiredInput(ctx, WEBDAV_PATH_TITLE, `pi-sync/${targetName}`, signal);
 	return remotePath ? validateDestination(ctx, remotePath) : undefined;
 }
 
@@ -324,20 +309,19 @@ async function chooseSessions(ctx: ExtensionCommandContext, signal?: AbortSignal
 	);
 }
 
-async function requiredInput(
+const WEBDAV_PATH_TITLE =
+	"WebDAV storage path\n\nFolder relative to the collection URL, not your local filesystem.\nA separate folder keeps this setup's snapshots apart from other content.";
+
+async function promptWebDavUrl(
 	ctx: ExtensionCommandContext,
-	title: string,
-	placeholder: string,
 	signal?: AbortSignal,
+	current?: string,
 ) {
-	const value = await awaitActive(signal, ctx.ui.input(title, placeholder, { signal }));
-	if (value === undefined) return undefined;
-	const trimmed = value.trim();
-	if (!trimmed) {
-		ctx.ui.notify(`${title} is required.`, "warning");
-		return undefined;
-	}
-	return trimmed;
+	const title =
+		"WebDAV collection URL\n\nUse the HTTPS WebDAV URL from your provider, not its web login page.";
+	return current
+		? requiredInput(ctx, title, current, signal)
+		: requiredValueInput(ctx, title, "https://cloud.example.com/remote.php/dav/files/user", signal);
 }
 
 async function select(

@@ -88,6 +88,7 @@ export function normalizeGitBranch(value: string | undefined) {
 }
 
 export function normalizeGitDirectory(value: string | undefined) {
+	if (value?.trim() === "." || value?.trim() === "./") return "./";
 	const directory = trimSlashes(normalizeOptionalString(value) ?? DEFAULT_GIT_DIRECTORY);
 	if (
 		!directory ||

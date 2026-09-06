@@ -604,7 +604,7 @@ export class GitSyncBackend implements SyncBackend {
 	}
 
 	private publicationPath() {
-		return this.config.destination.directory;
+		return this.config.destination.directory === "./" ? "" : this.config.destination.directory;
 	}
 
 	private manifestPath() {

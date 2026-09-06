@@ -45,8 +45,10 @@ test.each([32, 80])("Pi core name input renders guidance within %s columns", asy
 	assert.ok(lines.every((line) => visibleWidth(line) <= width));
 	const text = stripVTControlCharacters(lines.join(" ")).replace(/\s+/gu, " ");
 	assert.match(text, /Name this sync setup/u);
-	assert.match(text, /Examples: home, work, personal\. Leave blank to use default\./u);
-	assert.match(text, /Used in suggested storage paths and Git branches\./u);
+	assert.match(text, /Examples: home, work, personal\./u);
+	assert.match(text, /Default: default \(leave blank to keep\)/u);
+	assert.match(text, /Also names the storage connection; no second name is needed\./u);
+	assert.match(text, /Git branch and storage path are chosen separately\./u);
 	assert.match(text, /Sync content and automatic sync are chosen separately\./u);
 });
 
@@ -92,7 +94,7 @@ const invalidCommonNames = [
 	"work\u001b[31m",
 	"work\u0085profile",
 ];
-const invalidGitNames = [
+const independentGitNames = [
 	"work profile",
 	"work..profile",
 	"work@{profile}",
@@ -112,8 +114,17 @@ const invalidGitNames = [
 ];
 
 const invalidCases = [
-	...presets.flatMap((preset) => invalidCommonNames.map((name) => ({ preset, name }))),
-	...invalidGitNames.map((name) => ({ preset: "Git", name })),
+	...presets
+		.filter((preset) => preset !== "Git")
+		.flatMap((preset) => invalidCommonNames.map((name) => ({ preset, name }))),
+	...[
+		"__proto__",
+		"prototype",
+		"constructor",
+		"a".repeat(101),
+		"work\u001b[31m",
+		"work\u0085profile",
+	].map((name) => ({ preset: "Git", name })),
 ];
 
 test.each(invalidCases)(
@@ -150,6 +161,7 @@ test.each(invalidCases)(
 );
 
 const validCases = [
+	...independentGitNames.map((name) => ({ preset: "Git", name })),
 	...presets.flatMap((preset) =>
 		["default", "team/work", "-work", "refs/work", "@", "工作", "a".repeat(100)].map((name) => ({
 			preset,
@@ -199,7 +211,7 @@ test.each([false, true])(
 				input: async (title: string, _placeholder?: string, options?: { signal?: AbortSignal }) => {
 					titles.push(title);
 					signals.push(options?.signal);
-					if (titles.length === 1) return "work profile";
+					if (titles.length === 1) return "__proto__";
 					if (abort) {
 						controller.abort(new DOMException("Session shut down", "AbortError"));
 						return "default";

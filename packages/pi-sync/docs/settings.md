@@ -108,6 +108,11 @@ Temporary S3 credentials may additionally include `credentials.sessionToken`.
 - **WebDAV connection:** `type`, HTTPS `url`, and `credentials.username` / `credentials.password`.
 - **WebDAV setup storage:** `connection` and complete relative `path`; `bucket` and `branch` are rejected.
 
+Git accepts `.` or `./` for the repository root; both resolve to `./` and share the same local state identity.
+The setup wizard suggests `main` and `./` without changing existing settings or the required-field rules for manually written documents.
+WebDAV and S3/R2 paths remain non-empty relative folders or prefixes, with `pi-sync/<setup>` suggested during setup.
+Git branches are exclusively managed by pi-sync; an existing branch containing unrelated files is rejected rather than overwritten.
+
 Every setup requires `sync.include` and explicit `sync.automatic`.
 `activeSyncSetup` must reference an own-property setup when any setups exist and must be absent when the setup catalog is empty.
 A referenced connection cannot be removed.

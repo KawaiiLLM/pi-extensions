@@ -194,8 +194,9 @@ function resolveSyncConfig(
 	onSwitch: OnSwitchAction,
 	skipSecretScan: boolean,
 ): AnySyncConfig {
-	const storagePath = normalizeStoragePath(setup.storage.path);
-	const namespace = storagePath.slice(storagePath.lastIndexOf("/") + 1);
+	const storagePath = normalizeStoragePath(setup.storage.path, connection.type === "git");
+	const namespace =
+		storagePath === "./" ? "root" : storagePath.slice(storagePath.lastIndexOf("/") + 1);
 	const include = normalizeSyncInclude(setup.sync.include);
 	const common = {
 		setupName,
@@ -433,7 +434,10 @@ function validateSyncSetup(
 		);
 	}
 	const type = connection.type;
-	normalizeStoragePath(requiredString(storage.path, `storage path for sync setup “${name}”`));
+	normalizeStoragePath(
+		requiredString(storage.path, `storage path for sync setup “${name}”`),
+		type === "git",
+	);
 	if (type === "s3") {
 		normalizeS3Bucket(requiredString(storage.bucket, `S3 bucket for sync setup “${name}”`));
 		if (Object.hasOwn(storage, "branch")) mixedSetupError("S3", name);
@@ -487,7 +491,7 @@ export function effectiveSyncSetupRemoteIdentity(
 	setup: SyncSetupSettings,
 	connection: StorageConnectionSettings,
 ) {
-	const storagePath = normalizeStoragePath(setup.storage.path);
+	const storagePath = normalizeStoragePath(setup.storage.path, connection.type === "git");
 	if (connection.type === "git") {
 		return JSON.stringify([
 			"git",
@@ -602,7 +606,8 @@ function optionalString(value: unknown, field: string) {
 	return value.trim() || undefined;
 }
 
-export function normalizeStoragePath(value: string) {
+export function normalizeStoragePath(value: string, allowRoot = false) {
+	if (allowRoot && (value.trim() === "." || value.trim() === "./")) return "./";
 	const normalized = value.trim().replace(/^\/+|\/+$/gu, "");
 	if (
 		!normalized ||

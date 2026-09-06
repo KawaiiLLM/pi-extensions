@@ -83,7 +83,7 @@ test.each([
 		await mock.commands.get("sync")?.handler("", ctx);
 		const saved = await readLocalConfigObject();
 		assert.equal(saved?.skipSecretScan, false);
-		assert.deepEqual(saved?.storageConnections.r2, {
+		assert.deepEqual(saved?.storageConnections[name], {
 			type: "s3",
 			endpoint: "https://account.r2.cloudflarestorage.com",
 			region: "auto",
@@ -91,16 +91,20 @@ test.each([
 		});
 		assert.equal(saved?.activeSyncSetup, name);
 		assert.deepEqual(saved?.syncSetups[name].storage, {
-			connection: "r2",
+			connection: name,
 			bucket: "pi-sync",
 			path: `pi-sync/${name}`,
 		});
 		assert.match(inputTitles[0], /^Name this sync setup\n/u);
 		assert.match(inputTitles[0], /Examples: home, work, personal/u);
-		assert.match(inputTitles[0], /Leave blank to use default/u);
-		assert.match(inputTitles[0], /suggested storage paths and Git branches/u);
+		assert.match(inputTitles[0], /Default: default \(leave blank to keep\)/u);
+		assert.match(inputTitles[0], /Used in the suggested storage path/u);
 		assert.match(inputTitles[0], /Sync content and automatic sync are chosen separately/u);
-		assert.deepEqual(inputTitles.slice(1), ["Cloudflare R2 endpoint", "Access key ID"]);
+		assert.deepEqual(
+			inputTitles.slice(1).map((title) => title.split("\n")[0]),
+			["Cloudflare R2 endpoint", "Access key ID"],
+		);
+		assert.match(inputTitles[1], /Example: https:\/\/<account-id>\.r2\.cloudflarestorage\.com/u);
 		assert.ok(rendered.join("\n").includes(`Storage location: pi-sync/${name}`));
 		assert.doesNotMatch(rendered.join("\n"), /What will this sync setup be used for/u);
 		assert.doesNotMatch(rendered.join("\n"), /profiles\/|secret-key|access-key/u);
@@ -127,7 +131,6 @@ test("generic S3 setup reviews one complete custom storage path", async () => {
 			"work",
 			"https://s3.example.com",
 			"ap-northeast-1",
-			"archive",
 			"company-pi",
 			"teams/pi/work",
 			"access-key",
@@ -146,11 +149,12 @@ test("generic S3 setup reviews one complete custom storage path", async () => {
 		await mock.commands.get("sync")?.handler("", ctx);
 		const saved = await readLocalConfigObject();
 		assert.deepEqual(saved?.syncSetups.work.storage, {
-			connection: "archive",
+			connection: "work",
 			bucket: "company-pi",
 			path: "teams/pi/work",
 		});
-		assert.ok(inputTitles.includes("Storage path"));
+		assert.ok(inputTitles.some((title) => title.startsWith("Storage path\n")));
+		assert.equal(inputTitles.filter((title) => /name/iu.test(title.split("\n")[0])).length, 1);
 		assert.ok(!inputTitles.includes("Remote prefix"));
 		assert.ok(!inputTitles.includes("Remote namespace"));
 	});

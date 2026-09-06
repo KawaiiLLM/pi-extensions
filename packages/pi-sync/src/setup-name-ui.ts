@@ -1,6 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { normalizeStoragePath, validateConfigName } from "./config.js";
-import { normalizeGitBranch, normalizeGitDirectory } from "./git-config.js";
 import { errorMessage, requiredInput, safeTerminalText } from "./manager-helpers.js";
 import { normalizeWebDavPath } from "./webdav-config.js";
 
@@ -15,8 +14,11 @@ export async function promptInitialSetupName(
 			[
 				"Name this sync setup",
 				"",
-				"Examples: home, work, personal. Leave blank to use default.",
-				"Used in suggested storage paths and Git branches.",
+				"Examples: home, work, personal.",
+				"Also names the storage connection; no second name is needed.",
+				preset === "Git"
+					? "Git branch and storage path are chosen separately."
+					: "Used in the suggested storage path.",
 				"Sync content and automatic sync are chosen separately.",
 			].join("\n"),
 			"default",
@@ -27,11 +29,8 @@ export async function promptInitialSetupName(
 			validateConfigName(name, "sync setup");
 			// Validate the same suggestions the backend prompts will offer, without changing the name.
 			const suggestedPath = `pi-sync/${name}`;
-			normalizeStoragePath(suggestedPath);
-			if (preset === "Git") {
-				normalizeGitBranch(suggestedPath);
-				normalizeGitDirectory(suggestedPath);
-			} else if (preset === "WebDAV") {
+			if (preset !== "Git") normalizeStoragePath(suggestedPath);
+			if (preset === "WebDAV") {
 				normalizeWebDavPath(suggestedPath);
 			}
 			return name;

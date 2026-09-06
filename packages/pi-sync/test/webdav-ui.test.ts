@@ -41,13 +41,13 @@ test("first WebDAV setup stores masked credentials in the exact version 3 shape"
 		});
 		assert.equal(await showWebDavSetup(ctx, "home"), true);
 		const raw = await readLocalConfigObject();
-		assert.deepEqual(raw?.storageConnections.webdav, {
+		assert.deepEqual(raw?.storageConnections.home, {
 			type: "webdav",
 			url: "https://cloud.example.com/remote.php/dav/files/user/",
 			credentials: { username: "user", password: "app-password" },
 		});
 		assert.deepEqual(raw?.syncSetups.home.storage, {
-			connection: "webdav",
+			connection: "home",
 			path: "pi-sync/home",
 		});
 		assert.doesNotMatch(rendered.join("\n"), /app-password/u);

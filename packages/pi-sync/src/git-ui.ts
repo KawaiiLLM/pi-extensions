@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { normalizeGitBranch, normalizeGitDirectory, normalizeGitRemote } from "./git-config.js";
-import { requiredInput, safeTerminalText } from "./manager-helpers.js";
+import { requiredInput, requiredValueInput, safeTerminalText } from "./manager-helpers.js";
 import {
 	addStorageConnection,
 	addSyncSetup,
@@ -16,16 +16,10 @@ export async function showGitSetup(
 	targetName: string,
 	signal?: AbortSignal,
 ) {
-	const profileName = await requiredInput(ctx, "Name this Git storage connection", "git", signal);
-	if (!profileName) return false;
-	const remoteInput = await requiredInput(
-		ctx,
-		"Git SSH or HTTPS remote",
-		"git@github.com:owner/private-pi-sync.git",
-		signal,
-	);
+	const profileName = targetName;
+	const remoteInput = await promptGitRemote(ctx, signal);
 	if (!remoteInput) return false;
-	const destination = await promptGitDestination(ctx, targetName, signal);
+	const destination = await promptGitDestination(ctx, signal);
 	if (!destination) return false;
 	const automatic = await ctx.ui.select(
 		"Automatic sync for this setup",
@@ -91,12 +85,7 @@ export async function showGitSetup(
 export async function showAddGitStorageProfile(ctx: ExtensionCommandContext, signal?: AbortSignal) {
 	const name = await requiredInput(ctx, "Name this Git storage connection", "git", signal);
 	if (!name) return false;
-	const remoteInput = await requiredInput(
-		ctx,
-		"Git SSH or HTTPS remote",
-		"git@github.com:owner/private-pi-sync.git",
-		signal,
-	);
+	const remoteInput = await promptGitRemote(ctx, signal);
 	if (!remoteInput) return false;
 	let remote: string | undefined;
 	try {
@@ -126,13 +115,10 @@ export async function showEditGitStorageProfile(
 	signal?: AbortSignal,
 	affectedSetups?: string[],
 ) {
-	const remoteInput = await requiredInput(
+	const remoteInput = await promptGitRemote(
 		ctx,
-		"Git SSH or HTTPS remote",
-		typeof profile.remote === "string"
-			? profile.remote
-			: "git@github.com:owner/private-pi-sync.git",
 		signal,
+		typeof profile.remote === "string" ? profile.remote : undefined,
 	);
 	if (!remoteInput) return false;
 	let remote: string | undefined;
@@ -170,7 +156,7 @@ export async function showAddGitTarget(
 	profile: string,
 	signal?: AbortSignal,
 ) {
-	const destination = await promptGitDestination(ctx, name, signal);
+	const destination = await promptGitDestination(ctx, signal);
 	if (!destination) return false;
 	const preset = await ctx.ui.select(
 		"Choose included content",
@@ -221,7 +207,7 @@ export async function showEditGitTarget(
 	signal?: AbortSignal,
 ) {
 	const targetName = partial.setupName;
-	const destination = await promptGitDestination(ctx, targetName, signal, partial);
+	const destination = await promptGitDestination(ctx, signal, partial);
 	if (!destination) return false;
 	if (destination.directory !== partial.storagePath && destination.branch === partial.branch) {
 		ctx.ui.notify(
@@ -259,31 +245,46 @@ export async function showEditGitTarget(
 	return true;
 }
 
+async function promptGitRemote(
+	ctx: ExtensionCommandContext,
+	signal?: AbortSignal,
+	current?: string,
+) {
+	const title =
+		"Git remote URL (SSH or HTTPS)\n\nUse an existing private repository with Git/SSH authentication already configured.";
+	return current
+		? requiredInput(ctx, title, current, signal)
+		: requiredValueInput(
+				ctx,
+				title,
+				"git@github.com:owner/private-pi-sync.git (SSH) or https://github.com/owner/private-pi-sync.git (HTTPS)",
+				signal,
+			);
+}
+
 async function promptGitDestination(
 	ctx: ExtensionCommandContext,
-	targetName: string,
 	signal?: AbortSignal,
 	current: Partial<PartialConfig> = {},
 ) {
 	const branchInput = await requiredInput(
 		ctx,
-		"Owned Git branch",
-		current.branch ?? `pi-sync/${targetName}`,
+		"Git branch for sync snapshots\n\npi-sync manages this entire branch, not your local working branch.\nUse a new branch or one already used by pi-sync; unrelated content is rejected.",
+		current.branch ?? "main",
 		signal,
 	);
 	if (!branchInput) return undefined;
 	const pathInput = await requiredInput(
 		ctx,
-		"Git storage path",
-		current.storagePath ?? `pi-sync/${targetName}`,
+		"Git storage path\n\nRelative to the repository root, not your local filesystem.\n./ stores manifest.json and files/ at the repository root.",
+		current.storagePath ?? "./",
 		signal,
 	);
 	if (!pathInput) return undefined;
 	try {
 		const branch = normalizeGitBranch(branchInput);
 		const directory = normalizeGitDirectory(pathInput);
-		const namespace = directory.slice(directory.lastIndexOf("/") + 1);
-		return { branch, directory, namespace };
+		return { branch, directory };
 	} catch (error) {
 		ctx.ui.notify(error instanceof Error ? error.message : String(error), "error");
 		return undefined;
