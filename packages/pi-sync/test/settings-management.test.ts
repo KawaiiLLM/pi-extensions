@@ -20,6 +20,7 @@ import {
 	updateLocalConfig,
 } from "../src/config.js";
 import { withConfigFilePublicationForTest, withLocalConfigFileLock } from "../src/config-file.js";
+import { showSetupWizard } from "../src/manager-ui.js";
 import {
 	addStorageConnection,
 	addSyncSetup,
@@ -41,7 +42,13 @@ function writeSettings(value = v3S3Settings()) {
 	writeFileSync(localConfigPath(), `${JSON.stringify(value, null, "\t")}\n`, { mode: 0o600 });
 }
 
-test("first Cloudflare R2 setup writes exact paths and masked version 3 credentials", async () => {
+test.each([
+	["home", "home"],
+	["work", "work"],
+	[" personal ", "personal"],
+	["", "default"],
+	["   ", "default"],
+])("first Cloudflare R2 setup uses entered name %j and masked credentials", async (input, name) => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
 		const mock = createMockPi();
@@ -49,7 +56,6 @@ test("first Cloudflare R2 setup writes exact paths and masked version 3 credenti
 		const choices = [
 			"Set up sync",
 			"Cloudflare R2",
-			"Personal / Home",
 			"Use suggested location (recommended)",
 			"Store credentials privately",
 			"Recommended Pi settings",
@@ -58,7 +64,7 @@ test("first Cloudflare R2 setup writes exact paths and masked version 3 credenti
 			"Save sync setup",
 			undefined,
 		];
-		const inputs = ["https://account.r2.cloudflarestorage.com", "access-key"];
+		const inputs = [input, "https://account.r2.cloudflarestorage.com", "access-key"];
 		const rendered: string[] = [];
 		const inputTitles: string[] = [];
 		const { ctx } = createMockContext({
@@ -83,13 +89,20 @@ test("first Cloudflare R2 setup writes exact paths and masked version 3 credenti
 			region: "auto",
 			credentials: { accessKeyId: "access-key", secretAccessKey: "secret-key" },
 		});
-		assert.deepEqual(saved?.syncSetups.home.storage, {
+		assert.equal(saved?.activeSyncSetup, name);
+		assert.deepEqual(saved?.syncSetups[name].storage, {
 			connection: "r2",
 			bucket: "pi-sync",
-			path: "pi-sync/home",
+			path: `pi-sync/${name}`,
 		});
-		assert.deepEqual(inputTitles, ["Cloudflare R2 endpoint", "Access key ID"]);
-		assert.match(rendered.join("\n"), /Storage location: pi-sync\/home/u);
+		assert.match(inputTitles[0], /^Name this sync setup\n/u);
+		assert.match(inputTitles[0], /Examples: home, work, personal/u);
+		assert.match(inputTitles[0], /Leave blank to use default/u);
+		assert.match(inputTitles[0], /suggested storage paths and Git branches/u);
+		assert.match(inputTitles[0], /Sync content and automatic sync are chosen separately/u);
+		assert.deepEqual(inputTitles.slice(1), ["Cloudflare R2 endpoint", "Access key ID"]);
+		assert.ok(rendered.join("\n").includes(`Storage location: pi-sync/${name}`));
+		assert.doesNotMatch(rendered.join("\n"), /What will this sync setup be used for/u);
 		assert.doesNotMatch(rendered.join("\n"), /profiles\/|secret-key|access-key/u);
 	});
 });
@@ -102,7 +115,6 @@ test("generic S3 setup reviews one complete custom storage path", async () => {
 		const choices = [
 			"Set up sync",
 			"Other S3-compatible storage",
-			"Work",
 			"Customize remote location",
 			"Store credentials privately",
 			"Minimal settings",
@@ -112,6 +124,7 @@ test("generic S3 setup reviews one complete custom storage path", async () => {
 			undefined,
 		];
 		const inputs = [
+			"work",
 			"https://s3.example.com",
 			"ap-northeast-1",
 			"archive",
@@ -151,14 +164,13 @@ test("session inclusion requires privacy acknowledgement before settings publica
 		const choices = [
 			"Set up sync",
 			"Cloudflare R2",
-			"Personal / Home",
 			"Use suggested location (recommended)",
 			"Store credentials privately",
 			"Recommended Pi settings",
 			"Keep automatic sync off",
 			"Include session conversations",
 		];
-		const inputs = ["https://account.r2.cloudflarestorage.com", "access-key"];
+		const inputs = ["home", "https://account.r2.cloudflarestorage.com", "access-key"];
 		const { ctx } = createMockContext({
 			hasUI: true,
 			mode: "tui",
@@ -187,6 +199,58 @@ test("cancelling first setup creates neither settings nor sync state", async () 
 		assert.equal(await readLocalConfigObject(), undefined);
 		assert.equal(existsSync(path.join(agentDir, "pi-sync")), false);
 		assert.equal(existsSync(path.join(agentDir, ".pisync")), false);
+	});
+});
+
+test.each(["Cloudflare R2", "Other S3-compatible storage", "WebDAV", "Git"])(
+	"%s setup asks directly for a name and cancellation creates no settings or state",
+	async (preset) => {
+		await withTempHome(async (agentDir) => {
+			const selections: string[][] = [];
+			const inputs: string[] = [];
+			const { ctx } = createMockContext({
+				hasUI: true,
+				mode: "tui",
+				select: async (_title: string, options: string[]) => {
+					selections.push(options);
+					return selections.length === 1 ? preset : undefined;
+				},
+				input: async (title: string) => {
+					inputs.push(title);
+					return undefined;
+				},
+			});
+			assert.equal(await showSetupWizard(ctx), false);
+			assert.equal(selections.length, 1);
+			assert.equal(inputs.length, 1);
+			assert.match(inputs[0], /^Name this sync setup\n/u);
+			assert.equal(await readLocalConfigObject(), undefined);
+			assert.equal(existsSync(path.join(agentDir, "pi-sync")), false);
+			assert.equal(existsSync(path.join(agentDir, ".pisync")), false);
+		});
+	},
+);
+
+test("aborting the name input ignores a late answer without advancing setup", async () => {
+	await withTempHome(async () => {
+		const controller = new AbortController();
+		let inputCalls = 0;
+		let receivedSignal: AbortSignal | undefined;
+		const { ctx } = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			select: async () => "Cloudflare R2",
+			input: async (_title: string, _placeholder?: string, options?: { signal?: AbortSignal }) => {
+				inputCalls += 1;
+				receivedSignal = options?.signal;
+				controller.abort(new DOMException("Session replaced", "AbortError"));
+				return "home";
+			},
+		});
+		await assert.rejects(showSetupWizard(ctx, controller.signal), { name: "AbortError" });
+		assert.equal(receivedSignal, controller.signal);
+		assert.equal(inputCalls, 1);
+		assert.equal(await readLocalConfigObject(), undefined);
 	});
 });
 
