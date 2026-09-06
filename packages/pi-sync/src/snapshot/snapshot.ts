@@ -96,12 +96,13 @@ export async function createSnapshot(
 	profile: string,
 	options: SnapshotOptions = {},
 ): Promise<Snapshot> {
+	options.signal?.throwIfAborted();
 	const include = effectiveInclude(options);
 	const syncSessions = include.includes("sessions");
-	const files = await collectFiles(agentDir(), {
-		include,
-		sessionDir: options.sessionDir ?? (await configuredSessionDir()),
-	});
+	const sessionDir = options.sessionDir ?? (await configuredSessionDir());
+	options.signal?.throwIfAborted();
+	const files = await collectFiles(agentDir(), { include, sessionDir, signal: options.signal });
+	options.signal?.throwIfAborted();
 	return {
 		version: VERSION,
 		id: snapshotId(),
@@ -127,48 +128,61 @@ export async function collectFiles(
 	root: string,
 	options: SnapshotOptions = {},
 ): Promise<SnapshotFile[]> {
+	const signal = options.signal;
+	signal?.throwIfAborted();
 	const results: SnapshotFile[] = [];
 	const entries = await fs.readdir(root, { withFileTypes: true });
+	signal?.throwIfAborted();
 	const selection = syncIncludeSelection(effectiveInclude(options));
 	const selectedFiles = new Set<string>(selection.builtIns);
 	for (const entry of entries) {
 		if (entry.isDirectory() && TOP_LEVEL_DIRS.has(entry.name) && selectedFiles.has(entry.name)) {
-			await collectDirectory(results, root, entry.name);
+			await collectDirectory(results, root, entry.name, { signal });
 		}
 	}
 	for (const fileName of TOP_LEVEL_FILES) {
 		if (!selectedFiles.has(fileName)) continue;
 		const entry = selectTopLevelFileEntry(entries, fileName);
-		if (entry) await addFile(results, root, entry.name, fileName);
+		if (entry) await addFile(results, root, entry.name, fileName, signal);
 	}
 	for (const relativePath of selection.custom) {
-		await collectIncludedPath(results, root, relativePath);
+		await collectIncludedPath(results, root, relativePath, signal);
 	}
 	if (selection.sessions) {
 		try {
 			await collectDirectory(results, sessionStorageRoot(root, options.sessionDir), "", {
 				sessionsOnly: true,
 				virtualPrefix: "sessions",
+				signal,
 			});
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		}
 	}
+	signal?.throwIfAborted();
 	return results.sort((left, right) => left.path.localeCompare(right.path));
 }
 
-async function collectIncludedPath(results: SnapshotFile[], root: string, relativePath: string) {
+async function collectIncludedPath(
+	results: SnapshotFile[],
+	root: string,
+	relativePath: string,
+	signal?: AbortSignal,
+) {
+	signal?.throwIfAborted();
 	const absolutePath = safeJoin(root, relativePath);
 	try {
 		const stat = await fs.lstat(absolutePath);
-		if (stat.isFile()) await addFile(results, root, relativePath);
-		else if (stat.isDirectory()) await collectDirectory(results, root, relativePath);
+		signal?.throwIfAborted();
+		if (stat.isFile()) await addFile(results, root, relativePath, relativePath, signal);
+		else if (stat.isDirectory()) await collectDirectory(results, root, relativePath, { signal });
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		if (!relativePath.includes("/")) {
 			const entries = await fs.readdir(root, { withFileTypes: true });
+			signal?.throwIfAborted();
 			const entry = selectTopLevelFileEntry(entries, relativePath);
-			if (entry) await addFile(results, root, entry.name, relativePath);
+			if (entry) await addFile(results, root, entry.name, relativePath, signal);
 		}
 	}
 }
@@ -177,10 +191,12 @@ async function collectDirectory(
 	results: SnapshotFile[],
 	root: string,
 	relativeDirectory: string,
-	options: { sessionsOnly?: boolean; virtualPrefix?: string } = {},
+	options: { sessionsOnly?: boolean; virtualPrefix?: string; signal?: AbortSignal } = {},
 ) {
+	options.signal?.throwIfAborted();
 	const absoluteDirectory = path.join(root, relativeDirectory);
 	for (const entry of await fs.readdir(absoluteDirectory, { withFileTypes: true })) {
+		options.signal?.throwIfAborted();
 		const relativePath = relativeDirectory ? posixJoin(relativeDirectory, entry.name) : entry.name;
 		const snapshotPath = options.virtualPrefix
 			? posixJoin(options.virtualPrefix, relativePath)
@@ -189,7 +205,7 @@ async function collectDirectory(
 		if (entry.isDirectory()) {
 			await collectDirectory(results, root, relativePath, options);
 		} else if (entry.isFile() && (!options.sessionsOnly || isSessionFilePath(snapshotPath))) {
-			await addFile(results, root, relativePath, snapshotPath);
+			await addFile(results, root, relativePath, snapshotPath, options.signal);
 		}
 	}
 }
@@ -199,10 +215,13 @@ async function addFile(
 	root: string,
 	relativePath: string,
 	snapshotPath = relativePath,
+	signal?: AbortSignal,
 ) {
+	signal?.throwIfAborted();
 	if (!isSafeSnapshotPath(snapshotPath)) return;
 	const absolutePath = safeJoin(root, relativePath);
-	const content = await fs.readFile(absolutePath);
+	const content = await fs.readFile(absolutePath, { signal });
+	signal?.throwIfAborted();
 	results.push({
 		path: snapshotPath,
 		contentBase64: content.toString("base64"),

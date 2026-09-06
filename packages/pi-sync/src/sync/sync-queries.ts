@@ -7,7 +7,6 @@ import { snapshotOptionsForContext } from "../snapshot/session-paths.js";
 import { createSnapshot, scanSnapshot } from "../snapshot/snapshot.js";
 import type { SnapshotOptions } from "../snapshot/snapshot-types.js";
 import { inspectLock, isLockGuardHeld, isStaleLock, withLock } from "../state/lock.js";
-import { readStateForConfig } from "../state/sync-state-store.js";
 import {
 	formatDiff,
 	formatSnapshotOnlyDiff,
@@ -17,9 +16,8 @@ import { safeTerminalText } from "../ui/terminal-text.js";
 import { formatRemoteSelectionStatus, readRemoteSnapshot } from "./remote-snapshot.js";
 import { throwIfAborted } from "./signals.js";
 import { errorMessage } from "./sync-errors.js";
+import { inspectSync } from "./sync-inspection.js";
 import { rollback } from "./sync-mutations.js";
-import { inspectRemoteSelection } from "./sync-policy.js";
-import { hasLocalChanges, remoteChangedSinceState } from "./sync-state.js";
 
 const STATUS_KEY = "sync";
 const DEFAULT_PROFILE = "default";
@@ -32,40 +30,26 @@ export async function status(
 	const config = await loadConfig(options.setup);
 	throwIfAborted(options.signal);
 	ctx.ui.setStatus(STATUS_KEY, `checking ${config.setupName}`);
-	const backend = await factory(config);
-	const local = await createSnapshot(
-		config.snapshotIdentity,
-		snapshotOptionsForContext(ctx, config),
-	);
+	const { head, selectionState, localChanged, remoteChanged, localFiles, destination, capability } =
+		await inspectSync(config, snapshotOptionsForContext(ctx, config), options.signal, factory);
 	throwIfAborted(options.signal);
-	const state = await readStateForConfig(config);
-	throwIfAborted(options.signal);
-	const head = await backend.readHead(options.signal);
-	throwIfAborted(options.signal);
-	const selectionState = head
-		? inspectRemoteSelection(config.include, { selection: head.selection, files: [] })
-		: undefined;
-	const localChanged = hasLocalChanges(local, state, config);
 
 	const remoteText = head
 		? `remote: ${head.snapshotId} from ${head.machine} at ${head.createdAt}`
 		: "remote: empty";
-	const remoteChanged = remoteChangedSinceState(head, state, config, (left, right) =>
-		backend.sameRevision(left, right),
-	);
 	const warnings = syncSessionsWarnings(config);
 	ctx.ui.setStatus(STATUS_KEY, undefined);
 	ctx.ui.notify(
 		[
 			`sync setup: ${config.setupName}`,
 			`storage connection: ${config.connectionName}`,
-			`storage location: ${safeTerminalText(backend.destination)}`,
-			`publication safety: ${publicationCapabilityDescription(backend.capability)}`,
+			`storage location: ${safeTerminalText(destination)}`,
+			`publication safety: ${publicationCapabilityDescription(capability)}`,
 			`included content: ${config.include.join(", ") || "none"}`,
 			`sessions: ${config.include.includes("sessions") ? "included" : "excluded"}`,
 			remoteText,
 			formatRemoteSelectionStatus(selectionState),
-			`local files: ${local.files.length}`,
+			`local files: ${localFiles}`,
 			`local changed since last sync: ${localChanged ? "yes" : "no"}`,
 			`remote changed since last sync: ${remoteChanged ? "yes" : "no"}`,
 			...warnings,

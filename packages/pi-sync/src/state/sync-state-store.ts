@@ -10,6 +10,11 @@ import type { SyncState } from "./state-types.js";
 
 const STATE_VERSION = 2;
 
+/** Bounded observation token; do not retain the full baseline in passive UI state. */
+export function syncStateFingerprint(state: SyncState) {
+	return createHash("sha256").update(JSON.stringify(state)).digest("hex");
+}
+
 export async function readState(profile: string): Promise<SyncState> {
 	return (
 		(await readJsonIfExists<SyncState>(statePath(profile))) ?? {

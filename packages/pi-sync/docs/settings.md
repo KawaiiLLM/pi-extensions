@@ -120,7 +120,9 @@ When adding a setup, locally configured destinations are checked before content 
 An occupied destination requires an explicit different path; Git requires a different branch because directories do not isolate publications on one branch.
 This check does not contact the server or discover setups configured only on other machines.
 
-Every setup requires `sync.include` and explicit `sync.automatic`. All initial and additional setup flows ask for automatic sync, with Off first; existing values are not rewritten. When enabled, the current setup syncs at Pi session startup. At shutdown, changes are pushed only when `sessions` is included.
+Every setup requires `sync.include` and explicit `sync.automatic`. Setup asks for automatic sync with Off first; existing values are not rewritten. When enabled, the current setup receives one background startup check in TUI/RPC, including reload/new/resume/fork. Startup no longer performs automatic transfers or opens dialogs; review changes through `/sync`. Print/JSON skip startup checks. Checks compare local hashes and remote metadata against the last sync baseline, so revision changes and missing baselines require review rather than proving a file conflict.
+
+The setting still permits automatic shutdown pushes of selected content when `sessions` is included, in all modes; this is not limited to uploading session files. Reload skips shutdown push. Settings changes apply to subsequent operations; changing this setting does not schedule another startup check until the next session start. Foreground `/sync` cancels a pending check before opening Settings. The check deadline is 30 seconds plus bounded cleanup, with manual retry through `/sync status`; there is no polling. See [Background startup checks](../README.md#background-startup-checks) for recovery and Git cache exceptions.
 
 Recommended includes the nine non-session Pi roots listed below; Minimal includes `settings.json` and `AGENTS.md`. The save review lists every selected path and the full backend destination. R2/S3 requires an explicitly entered existing bucket and never creates one. Saving setup or connection settings does not contact remote storage.
 
@@ -181,7 +183,7 @@ The saved state changes only `sync.include`, preserves unknown settings fields, 
 Its explicit Continue action starts a fresh **Sync now** route, while **Done** leaves the reviewed settings change saved without implying a file operation.
 Keeping this device's list opens the reviewed force-push path and explicitly replaces the remote policy while preserving eligible unmanaged remote files.
 
-Automatic sync and pull, including forced pull, pause on an explicit remote-policy difference rather than silently expanding local scope.
+Startup checks report an explicit remote-policy difference without applying it. Pull, including forced pull, pauses on that difference rather than silently expanding local scope.
 Status reports matches and exact local-only/remote-only paths.
 Old snapshots remain readable.
 Because they have no authoritative selection, pi-sync offers only a clearly labeled read-only partial discovery from safe remote file roots; selected-but-missing and preserved-unmanaged intent cannot be reconstructed.
@@ -189,7 +191,7 @@ Use **Add custom path…** for any needed path.
 
 Adding `sessions` requires a privacy acknowledgement in interactive flows.
 Session JSONL can contain prompts, tool output, file paths, images, and secrets.
-Automatic apply protects the currently open session file; restart Pi or resume a pulled session to use newly synchronized conversations.
+Pull protects the currently open session file; restart Pi or resume a pulled session to use newly synchronized conversations.
 
 ### Unsupported old settings and recovery
 

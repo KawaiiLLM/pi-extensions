@@ -6,6 +6,7 @@ import { createMockContext, createMockPi } from "../../../test/support.js";
 import { localConfigPath } from "../src/settings/config-file.js";
 import sync from "../src/sync.js";
 import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
+import { observeCheckCompletion } from "./startup-check-helpers.js";
 
 test("session replacement aborts an in-flight backend operation owned by the old session", async () => {
 	await withPendingStatusOperation("session_start");
@@ -30,7 +31,10 @@ test("WebDAV lifecycle ignores deprecated S3 auto-sync environment overrides", a
 			const mock = createMockPi();
 			sync(mock.pi);
 			const { ctx } = createMockContext({ hasUI: true });
+			const completion = observeCheckCompletion(ctx);
 			await mock.events.get("session_start")?.[0]?.({}, ctx);
+			await completion.completed;
+			await mock.events.get("session_shutdown")?.[0]?.({ reason: "reload" }, ctx);
 			assert.ok(requests > 0);
 		} finally {
 			delete process.env.PI_SYNC_AUTO_SYNC;

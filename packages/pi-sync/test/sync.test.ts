@@ -21,12 +21,17 @@ import {
 import { loadConfig, syncConfigReviewFingerprint } from "../src/settings/config.js";
 import { localConfigPath } from "../src/settings/config-file.js";
 import { readLocalConfigObject, updateLocalConfig } from "../src/settings/settings-store.js";
-import { withStateDirectoryAccess } from "../src/state/state-directory.js";
 import { syncBoth } from "../src/sync/sync-operations.js";
 import { BUILT_IN_SYNC_ROOTS, RemoteSelectionMismatchError } from "../src/sync/sync-policy.js";
 import sync from "../src/sync.js";
 import { showFileSelection } from "../src/ui/file-selection.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
+import {
+	contextUi,
+	deferred,
+	inspectionFixture,
+	observeCheckCompletion,
+} from "./startup-check-helpers.js";
 
 initTheme("dark", false);
 
@@ -103,7 +108,7 @@ test("session start leaves idle legacy state in place until migration is explici
 		writeFileSync(path.join(legacy, "default.state.json"), "state");
 		const mock = createMockPi();
 		sync(mock.pi);
-		const { ctx, notifications } = createMockContext();
+		const { ctx, notifications } = createMockContext({ hasUI: true });
 
 		await mock.events.get("session_start")?.[0]?.({}, ctx);
 
@@ -496,7 +501,7 @@ test("the command boundary sends only typed selection mismatches to the manager 
 	});
 });
 
-test("automatic selection mismatch offers immediate TUI recovery and Later preserves attention", async () => {
+test("startup selection mismatch stays passive until the user opens the manager", async () => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
 		const before = Buffer.from(
@@ -507,11 +512,19 @@ test("automatic selection mismatch offers immediate TUI recovery and Later prese
 		writeFileSync(path.join(agentDir, "sessions", "one.jsonl"), "{}\n");
 		const mock = createMockPi();
 		sync(mock.pi, {
+			loadSyncInspection: async () => ({
+				inspectSync: async (config) =>
+					inspectionFixture(config, {
+						selectionState: {
+							kind: "different",
+							include: ["settings.json", "pi-starship.toml", "sessions"],
+							remoteOnly: ["pi-starship.toml"],
+							localOnly: [],
+						},
+					}),
+			}),
 			loadSyncOperations: async () =>
 				({
-					syncBoth: async () => {
-						throw await selectionMismatch();
-					},
 					push: async () => {
 						throw await selectionMismatch();
 					},
@@ -524,22 +537,11 @@ test("automatic selection mismatch offers immediate TUI recovery and Later prese
 			custom: tui.custom,
 		});
 
-		const starting = mock.events.get("session_start")?.[0]?.({}, ctx);
-		await tui.waitForOpen();
-		const frame = tui.render().join("\n");
-		assert.match(frame, /Synced content differs/u);
-		assert.match(frame, /Later/u);
-		assert.match(frame, /Remote-only paths: 1/u);
-		let concurrentStateAccess = false;
-		await withStateDirectoryAccess(async () => {
-			concurrentStateAccess = true;
-		});
-		assert.equal(concurrentStateAccess, true);
-		tui.press("tui.select.cancel");
-		await starting;
-
+		const completion = observeCheckCompletion(ctx);
+		await mock.events.get("session_start")?.[0]?.({}, ctx);
+		await completion.completed;
 		assert.deepEqual(notifications, []);
-		assert.match(statuses.get("sync") ?? "", /review needed/u);
+		assert.match(statuses.get("sync") ?? "", /changes to review/u);
 		assert.ok(widgets.get("sync:attention"));
 		assert.deepEqual(readFileSync(localConfigPath()), before);
 
@@ -585,27 +587,26 @@ test("session replacement aborts startup attention without stale presentation", 
 		});
 		const config = await loadConfig("home");
 		let syncCalls = 0;
+		const started = deferred();
 		const mock = createMockPi();
 		sync(mock.pi, {
-			loadSyncOperations: async () =>
-				({
-					syncBoth: async () => {
-						syncCalls += 1;
-						if (syncCalls === 1) {
-							throw new RemoteSelectionMismatchError(
-								"home",
-								["settings.json"],
-								["settings.json", "models.json"],
-								syncConfigReviewFingerprint(config),
-							);
-						}
-					},
-				}) as never,
+			loadSyncInspection: async () => ({
+				inspectSync: async (_config, _options, signal) => {
+					syncCalls += 1;
+					if (syncCalls === 1) {
+						started.resolve();
+						await new Promise<void>((resolve) =>
+							signal?.addEventListener("abort", () => resolve(), { once: true }),
+						);
+					}
+					return inspectionFixture(config);
+				},
+			}),
 		});
 		const tui = createTuiHarness({ width: 60, rows: 18 });
 		const first = createMockContext({ hasUI: true, mode: "tui", custom: tui.custom });
 		const firstStart = mock.events.get("session_start")?.[0]?.({}, first.ctx);
-		await tui.waitForOpen();
+		await started.promise;
 		let replacementCustomCalls = 0;
 		const replacement = createMockContext({
 			hasUI: true,
@@ -616,8 +617,11 @@ test("session replacement aborts startup attention without stale presentation", 
 			},
 		});
 
+		const completion = observeCheckCompletion(replacement.ctx);
 		await mock.events.get("session_start")?.[0]?.({}, replacement.ctx);
 		await firstStart;
+		await completion.completed;
+		await mock.events.get("session_shutdown")?.[0]?.({ reason: "reload" }, replacement.ctx);
 
 		assert.equal(syncCalls, 2);
 		assert.equal(replacementCustomCalls, 0);
@@ -635,25 +639,26 @@ test("automatic RPC selection mismatch remains read-only and observable", async 
 		const config = await loadConfig("home");
 		const mock = createMockPi();
 		sync(mock.pi, {
-			loadSyncOperations: async () =>
-				({
-					syncBoth: async () => {
-						throw new RemoteSelectionMismatchError(
-							"home",
-							["settings.json"],
-							["settings.json", "models.json"],
-							syncConfigReviewFingerprint(config),
-						);
-					},
-				}) as never,
+			loadSyncInspection: async () => ({
+				inspectSync: async () =>
+					inspectionFixture(config, {
+						selectionState: {
+							kind: "different",
+							include: ["settings.json", "models.json"],
+							remoteOnly: ["models.json"],
+							localOnly: [],
+						},
+					}),
+			}),
 		});
 		const { ctx, notifications } = createMockContext({ hasUI: true, mode: "rpc" });
 
+		const completion = observeCheckCompletion(ctx);
 		await mock.events.get("session_start")?.[0]?.({}, ctx);
-
-		assert.match(notifications.at(-1)?.message ?? "", /pi-sync auto sync skipped/u);
-		assert.match(notifications.at(-1)?.message ?? "", /Remote-only: models\.json/u);
-		assert.match(notifications.at(-1)?.message ?? "", /RPC review is read-only/u);
+		await completion.completed;
+		assert.match(notifications.at(-1)?.message ?? "", /Synced-content list differs/u);
+		assert.match(notifications.at(-1)?.message ?? "", /No startup transfer/u);
+		await mock.events.get("session_shutdown")?.[0]?.({ reason: "reload" }, ctx);
 	});
 });
 
@@ -665,12 +670,11 @@ test("generic automatic failure remains notification-only", async () => {
 		});
 		const mock = createMockPi();
 		sync(mock.pi, {
-			loadSyncOperations: async () =>
-				({
-					syncBoth: async () => {
-						throw new Error("transport unavailable");
-					},
-				}) as never,
+			loadSyncInspection: async () => ({
+				inspectSync: async () => {
+					throw new Error("transport unavailable");
+				},
+			}),
 		});
 		let customCalls = 0;
 		const { ctx, notifications, widgets } = createMockContext({
@@ -682,7 +686,10 @@ test("generic automatic failure remains notification-only", async () => {
 			},
 		});
 
+		const completion = observeCheckCompletion(ctx);
 		await mock.events.get("session_start")?.[0]?.({}, ctx);
+		await completion.completed;
+		await mock.events.get("session_shutdown")?.[0]?.({ reason: "reload" }, ctx);
 
 		assert.equal(customCalls, 0);
 		assert.match(notifications.at(-1)?.message ?? "", /transport unavailable/u);
@@ -1030,9 +1037,17 @@ test("unsupported settings pause startup automatic sync and remain unchanged", a
 		const mock = createMockPi();
 		sync(mock.pi);
 		const { ctx, notifications } = createMockContext({ hasUI: true, mode: "tui" });
+		const notified = deferred();
+		const notify = contextUi(ctx).notify;
+		contextUi(ctx).notify = (message, level) => {
+			notify(message, level);
+			notified.resolve();
+		};
 		await mock.events.get("session_start")?.[0]?.({}, ctx);
+		await notified.promise;
+		await mock.events.get("session_shutdown")?.[0]?.({ reason: "reload" }, ctx);
 		const output = notifications.map((item) => item.message).join("\n");
-		assert.match(output, /auto sync skipped|version 3 is required/u);
+		assert.match(output, /startup check skipped|version 3 is required/u);
 		assert.doesNotMatch(output, /hidden/u);
 		assert.deepEqual(readFileSync(localConfigPath()), bytes);
 	});

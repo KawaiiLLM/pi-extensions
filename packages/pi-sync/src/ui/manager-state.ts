@@ -10,10 +10,16 @@ import {
 	operationBlocksChanges,
 	operationCanRecover,
 } from "../state/operation-availability.js";
-import { readStateForConfig } from "../state/sync-state-store.js";
+import { readStateForConfig, syncStateFingerprint } from "../state/sync-state-store.js";
 import { errorMessage } from "../sync/sync-errors.js";
+import type { StartupObservation } from "../sync/sync-inspection.js";
 import { compareSyncInclude, syncIncludeSelection } from "../sync/sync-policy.js";
-import { type SyncAttentionState, syncAttentionMatchesConfig } from "./sync-attention.js";
+import {
+	observationMatchesConfig,
+	observationSummary,
+	type SyncAttentionState,
+	syncAttentionMatchesConfig,
+} from "./sync-attention.js";
 import { countValidSyncSetups } from "./sync-setups-ui.js";
 import { safeTerminalText } from "./terminal-text.js";
 
@@ -30,6 +36,7 @@ export interface ManagerDescription {
 	actions: string[];
 	operation?: OperationAvailability;
 	attention?: SyncAttentionState;
+	observation?: StartupObservation;
 	attentionBlocksSync?: boolean;
 	attentionReviewDisabled?: boolean;
 }
@@ -38,6 +45,7 @@ export async function describeManagerState(
 	signal?: AbortSignal,
 	attention?: SyncAttentionState,
 	inspectOperation: () => Promise<OperationAvailability> = inspectOperationAvailability,
+	observation?: StartupObservation,
 ): Promise<ManagerDescription> {
 	let raw: Record<string, unknown> | undefined;
 	try {
@@ -104,6 +112,13 @@ export async function describeManagerState(
 		const syncState = changesBlocked
 			? undefined
 			: await readStateForConfig(config).catch(() => undefined);
+		const currentObservation =
+			observation &&
+			observationMatchesConfig(observation, config) &&
+			syncState &&
+			syncStateFingerprint(syncState) === observation.inspection.stateIdentity
+				? observation
+				: undefined;
 		const lastAppliedSnapshot = changesBlocked
 			? "Unavailable while operations are locked"
 			: syncState?.lastAppliedSnapshot
@@ -121,7 +136,7 @@ export async function describeManagerState(
 			`Current sync setup: ${safeTerminalText(config.setupName)}`,
 			`Storage: ${backendStorageDescription(config)}`,
 			`Included: ${selection.builtIns.length} built-in group${selection.builtIns.length === 1 ? "" : "s"} · ${selection.custom.length} extra path${selection.custom.length === 1 ? "" : "s"} · Sessions ${selection.sessions ? "on" : "off"}`,
-			`Automatic sync: ${config.automatic ? "On" : "Off"}`,
+			`Automatic sync: ${config.automatic ? "On (startup check only)" : "Off"}`,
 			`Last applied: ${lastAppliedSnapshot}`,
 			...(currentAttention
 				? [
@@ -134,7 +149,12 @@ export async function describeManagerState(
 							: `Remote-only paths: ${attentionComparison?.remoteOnly.length ?? 0} · Device-only paths: ${attentionComparison?.localOnly.length ?? 0}`,
 						"Nothing has been changed.",
 					]
-				: ["Remote status: Not checked"]),
+				: currentObservation
+					? [
+							`Startup check (${safeTerminalText(currentObservation.checkedAt)}): ${observationSummary(currentObservation)}`,
+							"Check-time observation only; synchronization rechecks current content.",
+						]
+					: ["Remote status: Not checked"]),
 			...(noSyncedContent
 				? [
 						"",
@@ -151,6 +171,7 @@ export async function describeManagerState(
 			).join("\n"),
 			actions: operationActions(operation, noSyncedContent, canSwitch, mainActions),
 			operation,
+			...(currentObservation ? { observation: currentObservation } : {}),
 			...(currentAttention
 				? {
 						attention: currentAttention,

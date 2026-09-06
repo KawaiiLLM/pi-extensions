@@ -1,21 +1,25 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { completeSyncArguments, splitArgs } from "./commands/command.js";
-import { handleCommand, resolveSelectionAttention } from "./commands/command-handler.js";
+import { handleCommand } from "./commands/command-handler.js";
+import type { AnySyncConfig } from "./settings/settings-types.js";
 import { withStateDirectoryAccess } from "./state/state-directory.js";
 import { autoPushSessions, startSession } from "./sync/automatic-sync.js";
 import { combineSignals } from "./sync/signals.js";
+import { createStartupCheck } from "./sync/startup-check.js";
 import { errorMessage } from "./sync/sync-errors.js";
 import { createSyncLoaders, type SyncDependencies } from "./sync/sync-loaders.js";
-import { formatRemoteSelectionMismatch, type RemoteSelectionDecision } from "./sync/sync-policy.js";
 import { createSyncAttentionController } from "./ui/sync-attention.js";
+import { safeTerminalText } from "./ui/terminal-text.js";
 
 const STATUS_KEY = "sync";
 
 export default function sync(pi: ExtensionAPI, dependencies: Partial<SyncDependencies> = {}) {
 	const loaders = createSyncLoaders(dependencies);
 	const attention = createSyncAttentionController();
+	const check = createStartupCheck(loaders, attention);
 	let sessionAbort = new AbortController();
 	let shutdownAbort: AbortController | undefined;
+	let initialization = Promise.resolve<AnySyncConfig | false | undefined>(undefined);
 
 	pi.registerCommand("sync", {
 		description: "Sync Pi settings through Git, WebDAV, R2, or S3-compatible storage",
@@ -26,8 +30,27 @@ export default function sync(pi: ExtensionAPI, dependencies: Partial<SyncDepende
 					"/sync requires TUI or RPC mode so results and safety prompts are observable.",
 				);
 			}
-			const run = () => handleCommand(args, ctx, sessionAbort.signal, loaders, attention);
-			if (splitArgs(args)[0] === "migrate-state") await run();
+			const signal = sessionAbort.signal;
+			const ready = await initialization;
+			if (signal.aborted) return;
+			await check.stop();
+			if (signal.aborted) return;
+			const command = splitArgs(args)[0];
+			if (
+				ready === false &&
+				command !== "help" &&
+				command !== "unlock" &&
+				command !== "migrate-state"
+			) {
+				ctx.ui.notify(
+					"pi-sync recovery required. Repair the startup error, then /reload before syncing. Use /sync help for recovery guidance.",
+					"error",
+				);
+				return;
+			}
+			const run = () => handleCommand(args, ctx, signal, loaders, attention);
+			// Drain background cache/child cleanup before entering any foreground guard.
+			if (command === "migrate-state") await run();
 			else await withStateDirectoryAccess(run);
 		},
 	});
@@ -39,32 +62,27 @@ export default function sync(pi: ExtensionAPI, dependencies: Partial<SyncDepende
 		sessionAbort = new AbortController();
 		const signal = sessionAbort.signal;
 		attention.reset(ctx);
-		let decision: RemoteSelectionDecision | undefined;
-		try {
-			decision = await withStateDirectoryAccess(() => startSession(ctx, signal, loaders));
-		} catch (error) {
-			if (signal.aborted) return;
-			ctx.ui.notify(`pi-sync state access failed: ${errorMessage(error)}`, "error");
-			return;
-		}
-		if (!decision || signal.aborted) return;
-		attention.set(decision, "sync");
-		if (ctx.mode !== "tui") {
-			ctx.ui.notify(
-				`pi-sync auto sync skipped: ${formatRemoteSelectionMismatch(
-					decision.setupName,
-					decision.localInclude,
-					decision.remoteInclude,
-				)}\nRPC review is read-only.`,
-				"warning",
-			);
-		} else if (attention.markOffered()) {
-			await resolveSelectionAttention(ctx, attention, signal, loaders, {
-				cancelLabel: "Later",
-				withStateAccess: withStateDirectoryAccess,
-			});
-		}
-		if (!signal.aborted) attention.publish(ctx);
+		const previous = initialization;
+		initialization = (async () => {
+			await previous;
+			if (signal.aborted) return false;
+			await check.stop();
+			if (signal.aborted) return false;
+			try {
+				const config = await withStateDirectoryAccess(() => startSession(ctx, signal));
+				return signal.aborted ? false : config;
+			} catch (error) {
+				if (!signal.aborted && ctx.hasUI) {
+					ctx.ui.notify(
+						`pi-sync recovery required: ${safeTerminalText(errorMessage(error))}`,
+						"error",
+					);
+				}
+				return false;
+			}
+		})();
+		const ready = await initialization;
+		if (ready && !signal.aborted) check.start(ctx, signal, ready);
 	});
 
 	pi.on("session_shutdown", async (event, ctx) => {
@@ -77,7 +95,11 @@ export default function sync(pi: ExtensionAPI, dependencies: Partial<SyncDepende
 		const reason =
 			typeof event === "object" && event ? (event as { reason?: string }).reason : undefined;
 		try {
-			if (reason !== "reload") {
+			const ready = await initialization;
+			if (signal.aborted) return;
+			await check.stop();
+			if (signal.aborted) return;
+			if (ready !== false && reason !== "reload") {
 				await withStateDirectoryAccess(async () => {
 					if (signal.aborted) return;
 					await autoPushSessions(ctx, signal, loaders);

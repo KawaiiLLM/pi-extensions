@@ -130,7 +130,7 @@ export async function showSetupSwitcher(
 			`To: ${safeTerminalText(name)}`,
 			`Storage: ${backendStorageDescription(config)}`,
 			`Included content: ${config.include.length} paths`,
-			`Automatic sync: ${config.automatic ? "On" : "Off"} · Sessions: ${config.include.includes("sessions") ? "On" : "Off"}`,
+			`Automatic sync: ${config.automatic ? "On (startup check only)" : "Off"} · Sessions: ${config.include.includes("sessions") ? "On" : "Off"}`,
 			"",
 			switchEffect,
 		].join("\n"),

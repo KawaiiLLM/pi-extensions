@@ -261,7 +261,7 @@ async function showConfig(ctx: ExtensionCommandContext, options: CommandOptions)
 			`storage connection: ${config.connectionName}`,
 			...storageLines,
 			`storage path: ${config.storagePath}`,
-			`automatic sync: ${config.automatic ? "enabled" : "disabled"}`,
+			`automatic sync: ${config.automatic ? "enabled (startup check only; shutdown push if sessions included)" : "disabled"}`,
 			`included content: ${config.include.join(", ") || "none"}`,
 			`sessions: ${config.include.includes("sessions") ? "included" : "not included"}`,
 			`settings file: ${localConfigPath()}`,

@@ -17,6 +17,7 @@ const FORBIDDEN_EAGER_INPUTS = [
 	"src/sync/setup-switch.ts",
 	"src/sync/sync-operations.ts",
 	"src/sync/sync-queries.ts",
+	"src/sync/sync-inspection.ts",
 	"src/sync/sync-mutations.ts",
 	"src/ui/manager-ui.ts",
 	"src/ui/setup/setup-wizard.ts",

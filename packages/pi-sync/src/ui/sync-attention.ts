@@ -1,7 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
-import { syncConfigReviewFingerprint } from "../settings/config.js";
+import { syncCheckConfigFingerprint, syncConfigReviewFingerprint } from "../settings/config.js";
 import type { AnySyncConfig } from "../settings/settings-types.js";
+import type { StartupObservation } from "../sync/sync-inspection.js";
 import {
 	compareSyncInclude,
 	type RemoteSelectionDecision,
@@ -29,6 +30,10 @@ export function syncAttentionMatchesConfig(attention: SyncAttentionState, config
 }
 
 export interface SyncAttentionController {
+	observe(observation: StartupObservation): void;
+	observation(): StartupObservation | undefined;
+	clearObservation(): void;
+	notifyObservation(ctx: ExtensionContext): void;
 	set(decision: RemoteSelectionDecision, origin: SyncAttentionOrigin): void;
 	current(): SyncAttentionState | undefined;
 	markOffered(): boolean;
@@ -39,8 +44,23 @@ export interface SyncAttentionController {
 
 export function createSyncAttentionController(): SyncAttentionController {
 	let state: SyncAttentionState | undefined;
+	let observation: StartupObservation | undefined;
 
 	return {
+		observe(value) {
+			observation = value;
+		},
+		observation() {
+			return observation;
+		},
+		clearObservation() {
+			observation = undefined;
+		},
+		notifyObservation(ctx) {
+			if (observation && observationNeedsAttention(observation)) {
+				ctx.ui.notify(observationLines(observation).join("\n"), "warning");
+			}
+		},
 		set(decision, origin) {
 			state = { decision, origin, offered: false };
 		},
@@ -58,14 +78,20 @@ export function createSyncAttentionController(): SyncAttentionController {
 		},
 		reset(ctx) {
 			state = undefined;
+			observation = undefined;
 			clearAttentionPresentation(ctx);
 		},
 		publish(ctx) {
-			if (!state) {
+			if (!state && (!observation || !observationNeedsAttention(observation))) {
 				clearAttentionPresentation(ctx);
 				return;
 			}
-			const presentation = attentionPresentation(state.decision);
+			const presentation = state
+				? attentionPresentation(state.decision)
+				: {
+						status: "changes to review",
+						lines: observationLines(observation as StartupObservation),
+					};
 			ctx.ui.setStatus(STATUS_KEY, presentation.status);
 			if (ctx.mode !== "tui") return;
 			ctx.ui.setWidget(WIDGET_KEY, (_tui, theme) => ({
@@ -92,6 +118,49 @@ function attentionPresentation(decision: RemoteSelectionDecision) {
 		status: "review needed",
 		lines: [`Pi Sync needs review · ${setupName}`, difference, "No changes · Run /sync to review"],
 	};
+}
+
+export function observationMatchesConfig(observation: StartupObservation, config: AnySyncConfig) {
+	return observation.configIdentity === syncCheckConfigFingerprint(config);
+}
+
+export function observationSummary(observation: StartupObservation) {
+	const result = observation.inspection;
+	if (result.emptyInclude) return "No included content selected";
+	if (result.selectionState?.kind === "different")
+		return "Synced-content list differs; review needed";
+	if (result.firstSync)
+		return result.head
+			? "No sync baseline; review remote and local content"
+			: "Remote empty; no sync baseline";
+	if (!result.head) return "Remote snapshot missing; review needed";
+	if (result.localChanged && result.remoteChanged)
+		return "Local and remote changed since last sync; review needed";
+	if (result.remoteChanged) return "Remote changed since last sync";
+	if (result.localChanged) return "Local content changed since last sync";
+	if (result.selectionState?.kind === "legacy")
+		return "Legacy remote has no authoritative content list";
+	return "No changes detected since last sync";
+}
+
+export function observationNeedsAttention(observation: StartupObservation) {
+	const result = observation.inspection;
+	return (
+		result.emptyInclude ||
+		result.firstSync ||
+		!result.head ||
+		result.localChanged ||
+		result.remoteChanged ||
+		result.selectionState?.kind !== "same"
+	);
+}
+
+function observationLines(observation: StartupObservation) {
+	return [
+		`Pi Sync check · ${safeTerminalText(observation.setupName)}`,
+		observationSummary(observation),
+		"No startup transfer · Run /sync to review",
+	];
 }
 
 function clearAttentionPresentation(ctx: ExtensionContext) {

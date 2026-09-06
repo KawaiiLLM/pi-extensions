@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url";
 import { DefaultResourceLoader, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
+import { v3WebDavSettings } from "./helpers.js";
+import { deferred } from "./startup-check-helpers.js";
 
 const packageRoot = resolve("packages/pi-sync");
 const builderUrl = pathToFileURL(join(packageRoot, "scripts/build-runtime.mjs")).href;
@@ -48,6 +50,7 @@ test("generated runtime preserves every first-use import boundary", async () => 
 			"src/sync/setup-switch.ts",
 			"src/sync/sync-operations.ts",
 			"src/sync/sync-queries.ts",
+			"src/sync/sync-inspection.ts",
 			"src/sync/sync-mutations.ts",
 			"src/ui/manager-ui.ts",
 			"src/ui/setup/setup-wizard.ts",
@@ -182,6 +185,75 @@ test("generated runtime is mapped, external, self-contained, and loadable by Pi"
 			loaded.runtime.invalidate("generated setup smoke complete");
 		}
 	} finally {
+		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+		else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+		await rm(root, { force: true, recursive: true });
+	}
+});
+
+test("generated Jiti runtime starts a lazy background check and accepts foreground help before remote completion", async () => {
+	const builder = await loadBuilder();
+	const root = await mkdtemp(join(packageRoot, ".pi-sync-build-test-"));
+	const agentDir = join(root, "agent");
+	const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+	const previousFetch = globalThis.fetch;
+	const requested = deferred();
+	let aborted = false;
+	let requests = 0;
+	let loaded: ReturnType<DefaultResourceLoader["getExtensions"]> | undefined;
+	try {
+		await builder.buildRuntime({ outputDirectory: join(root, "dist") });
+		await mkdir(agentDir);
+		await writeFile(
+			join(agentDir, "pi-sync.json"),
+			JSON.stringify(v3WebDavSettings({ automatic: true })),
+		);
+		await writeFile(join(agentDir, "settings.json"), "{}\n");
+		process.env.PI_CODING_AGENT_DIR = agentDir;
+		globalThis.fetch = (async (_input, init) => {
+			assert.equal(init?.method, "GET");
+			requests++;
+			requested.resolve();
+			return new Promise<Response>((_resolve, reject) => {
+				init?.signal?.addEventListener(
+					"abort",
+					() => {
+						aborted = true;
+						reject(new DOMException("Aborted", "AbortError"));
+					},
+					{ once: true },
+				);
+			});
+		}) as typeof fetch;
+		const loader = new DefaultResourceLoader({
+			cwd: root,
+			agentDir,
+			settingsManager: SettingsManager.inMemory({}),
+			additionalExtensionPaths: [join(root, "dist/index.ts")],
+		});
+		await loader.reload();
+		loaded = loader.getExtensions();
+		assert.deepEqual(loaded.errors, []);
+		const extension = loaded.extensions[0];
+		assert.ok(extension);
+		const context = createMockContext({ mode: "rpc" });
+		try {
+			for (const handler of extension.handlers.get("session_start") ?? [])
+				await handler({ type: "session_start", reason: "startup" }, context.ctx);
+			await requested.promise;
+			assert.equal(aborted, false);
+			await extension.commands.get("sync")?.handler("help", context.ctx);
+			assert.equal(aborted, true);
+			assert.equal(requests, 1);
+			assert.ok(context.notifications.some((n) => n.message.includes("/sync")));
+			assert.ok(context.notifications.every((n) => !/failed|skipped/iu.test(n.message)));
+		} finally {
+			for (const handler of extension.handlers.get("session_shutdown") ?? [])
+				await handler({ type: "session_shutdown", reason: "reload" }, context.ctx);
+		}
+	} finally {
+		loaded?.runtime.invalidate("generated background check smoke complete");
+		globalThis.fetch = previousFetch;
 		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
 		else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
 		await rm(root, { force: true, recursive: true });

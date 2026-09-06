@@ -13,7 +13,7 @@ export async function readSetupConnection(name: string, signal?: AbortSignal) {
 }
 
 export const AUTOMATIC_SYNC_DESCRIPTION =
-	"Sync the current setup when a Pi session starts. At shutdown, push changes only when sessions are included.";
+	"Check the current setup in the background at startup; review changes in /sync before transferring. At shutdown, automatically push selected content only when sessions are included. No startup dialogs.";
 
 export async function chooseSetupContent(ctx: ExtensionCommandContext, signal?: AbortSignal) {
 	const choice = await ctx.ui.select(
