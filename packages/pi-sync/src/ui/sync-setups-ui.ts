@@ -1,8 +1,11 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { defineMenu, runMenu } from "@narumitw/pi-tui-kit";
-import { loadConfig, readLocalConfigObject } from "../settings/config.js";
+import { loadConfig } from "../settings/config.js";
+import { readLocalConfigObject } from "../settings/settings-store.js";
+import { ownRecord } from "../settings/settings-validation.js";
+import { errorMessage } from "../sync/sync-errors.js";
 import { syncIncludeSelection } from "../sync/sync-policy.js";
-import { errorMessage, ownRecord, safeTerminalText } from "./manager-helpers.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 export async function countValidSyncSetups(
 	setups: Record<string, unknown> | undefined,

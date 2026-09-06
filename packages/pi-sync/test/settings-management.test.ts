@@ -12,14 +12,9 @@ import {
 	createMockContext,
 	createMockPi,
 } from "../../../test/support.js";
+import { loadConfig } from "../src/settings/config.js";
 import {
-	configuredSyncSetupNames,
-	loadConfig,
 	localConfigPath,
-	readLocalConfigObject,
-	updateLocalConfig,
-} from "../src/settings/config.js";
-import {
 	withConfigFilePublicationForTest,
 	withLocalConfigFileLock,
 } from "../src/settings/config-file.js";
@@ -31,10 +26,15 @@ import {
 	updateStorageConnection,
 	updateSyncSetup,
 } from "../src/settings/settings-management.js";
+import {
+	configuredSyncSetupNames,
+	readLocalConfigObject,
+	updateLocalConfig,
+} from "../src/settings/settings-store.js";
 import { SetupPullRequiresUiError, useSyncSetup } from "../src/sync/setup-switch.js";
 import sync from "../src/sync.js";
-import { showSetupWizard } from "../src/ui/manager-ui.js";
 import { showSyncSettings } from "../src/ui/settings-ui.js";
+import { showSetupWizard } from "../src/ui/setup/setup-wizard.js";
 import { showStorageConnections } from "../src/ui/storage-connections-ui.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
@@ -582,7 +582,7 @@ test("cross-process settings mutations serialize under one read-modify-write loc
 		const configModule = pathToFileURL(
 			path.join(
 				process.cwd(),
-				"node_modules/.cache/pi-extensions-test/packages/pi-sync/src/settings/config.js",
+				"node_modules/.cache/pi-extensions-test/packages/pi-sync/src/settings/settings-store.js",
 			),
 		).href;
 		const mutate = (field: string) =>

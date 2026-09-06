@@ -4,9 +4,10 @@ import {
 	inspectOperationAvailability,
 	operationCanRecover,
 } from "../state/operation-availability.js";
+import { errorMessage } from "../sync/sync-errors.js";
 import type { RunRoute } from "./cancellable-operation.js";
-import { errorMessage, safeTerminalText } from "./manager-helpers.js";
 import type { ManagerDescription } from "./manager-state.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 export type RecoveryDisposition = "restored" | "stay" | "close";
 

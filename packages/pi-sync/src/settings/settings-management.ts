@@ -1,13 +1,13 @@
-import type { PiSyncSettingsV3, StorageConnectionSettings, SyncSetupSettings } from "../types.js";
-import {
-	effectiveSyncSetupRemoteIdentity,
-	localConfigPath,
-	normalizeSyncInclude,
-	type SyncSetupStorageReview,
-	syncSetupStorageReview,
-	updateLocalConfig,
-	validateConfigName,
-} from "./config.js";
+import { normalizeSyncInclude } from "../sync/sync-policy.js";
+import { type SyncSetupStorageReview, syncSetupStorageReview } from "./config.js";
+import { localConfigPath } from "./config-file.js";
+import { updateLocalConfig } from "./settings-store.js";
+import type {
+	PiSyncSettingsV3,
+	StorageConnectionSettings,
+	SyncSetupSettings,
+} from "./settings-types.js";
+import { effectiveSyncSetupRemoteIdentity, validateConfigName } from "./settings-validation.js";
 
 export class SyncSetupReviewChangedError extends Error {
 	constructor(message: string) {

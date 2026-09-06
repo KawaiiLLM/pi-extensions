@@ -2,12 +2,13 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { defineMenu, runMenu } from "@narumitw/pi-tui-kit";
 import { loadConfig, syncConfigReviewIdentity } from "../settings/config.js";
 import type { SyncDecision, SyncResolutionDirection } from "../sync/sync-decision.js";
+import { errorMessage } from "../sync/sync-errors.js";
 import {
 	type RunRoute,
 	type RunRouteResult,
 	runCancellableOperation,
 } from "./cancellable-operation.js";
-import { errorMessage, safeTerminalText } from "./sync-format.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 export type SyncResolutionResult =
 	| { kind: "resolved"; direction: SyncResolutionDirection }

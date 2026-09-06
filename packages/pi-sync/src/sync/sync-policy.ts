@@ -1,6 +1,6 @@
 import path from "node:path";
 import { isDeniedPath, toPosix } from "../paths.js";
-import type { Snapshot, SnapshotSelection } from "../types.js";
+import type { Snapshot, SnapshotSelection } from "../snapshot/snapshot-types.js";
 
 export const BUILT_IN_SYNC_ROOTS = [
 	"settings.json",

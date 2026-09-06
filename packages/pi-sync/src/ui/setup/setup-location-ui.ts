@@ -1,21 +1,24 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { normalizeGitBranch } from "../../backends/git/git-config.js";
+import { readLocalConfigObject } from "../../settings/settings-store.js";
+import type {
+	StorageConnectionSettings,
+	SyncSetupSettings,
+} from "../../settings/settings-types.js";
 import {
 	effectiveSyncSetupRemoteIdentity,
 	isCloudflareR2Endpoint,
 	normalizeStoragePath,
-	readLocalConfigObject,
-} from "../../settings/config.js";
-import type { StorageConnectionSettings, SyncSetupSettings } from "../../types.js";
-import {
-	errorMessage,
 	ownRecord,
+} from "../../settings/settings-validation.js";
+import { errorMessage } from "../../sync/sync-errors.js";
+import { safeTerminalText } from "../terminal-text.js";
+import {
 	promptTextInput,
 	requiredExistingBucket,
 	requiredInput,
 	requiredValueInput,
-	safeTerminalText,
-} from "../manager-helpers.js";
+} from "./text-input.js";
 
 interface ChosenRemoteLocation {
 	connectionName: string;

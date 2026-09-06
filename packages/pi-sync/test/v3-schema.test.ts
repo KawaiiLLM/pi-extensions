@@ -2,16 +2,18 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test } from "vitest";
+import { loadConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { configuredSyncSetupNames, readLocalConfigObject } from "../src/settings/settings-store.js";
 import {
-	configuredSyncSetupNames,
 	effectiveSyncSetupRemoteIdentity,
-	loadConfig,
-	localConfigPath,
-	normalizeSyncInclude,
-	readLocalConfigObject,
 	validateSettingsDocument,
-} from "../src/settings/config.js";
-import { BUILT_IN_SYNC_ROOTS, isSafeCustomIncludePath } from "../src/sync/sync-policy.js";
+} from "../src/settings/settings-validation.js";
+import {
+	BUILT_IN_SYNC_ROOTS,
+	isSafeCustomIncludePath,
+	normalizeSyncInclude,
+} from "../src/sync/sync-policy.js";
 import { withTempHome } from "./helpers.js";
 
 function connection(type: "s3" | "git" | "webdav") {

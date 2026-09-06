@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { lockPath } from "../src/settings/config.js";
+import { lockPath } from "../src/state/sync-state-store.js";
 
 export function writeOldLock(contents: string) {
 	writeFileSync(lockPath(), contents);

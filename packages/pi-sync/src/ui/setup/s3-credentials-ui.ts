@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { requiredValueInput } from "../manager-helpers.js";
 import { promptSecret } from "../secret-input.js";
+import { requiredValueInput } from "./text-input.js";
 
 export interface ChosenS3Credentials {
 	profileFields: { accessKeyId?: string; secretAccessKey?: string };

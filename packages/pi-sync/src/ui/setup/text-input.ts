@@ -1,5 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { isCloudflareR2Endpoint } from "../settings/config.js";
+import { safeTerminalText } from "../terminal-text.js";
 
 export async function requiredExistingBucket(
 	ctx: ExtensionCommandContext,
@@ -43,7 +43,6 @@ export async function requiredValueInput(
 	return withoutPlaceholder(await promptTextInput(ctx, title, { example }, signal));
 }
 
-// Text collection does not impose backend-specific syntax; callers validate the returned value.
 export async function promptTextInput(
 	ctx: ExtensionCommandContext,
 	title: string,
@@ -74,29 +73,4 @@ export async function promptTextInput(
 function withoutPlaceholder(value: string | undefined) {
 	// Preserve the existing Git/S3 placeholder policy; WebDAV permits literal angle brackets.
 	return value?.includes("<") || value?.includes(">") ? undefined : value;
-}
-
-export function storageDescription(
-	kind: string | undefined,
-	endpoint: string | undefined,
-	bucket: string | undefined,
-) {
-	const label =
-		kind === "r2" || isCloudflareR2Endpoint(endpoint) ? "Cloudflare R2" : "S3-compatible";
-	return `${label} · ${safeTerminalText(bucket ?? "bucket missing")}`;
-}
-
-export function ownRecord(value: unknown): Record<string, unknown> | undefined {
-	return value && typeof value === "object" && !Array.isArray(value)
-		? (value as Record<string, unknown>)
-		: undefined;
-}
-
-export function safeTerminalText(value: string) {
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: Escape untrusted terminal controls.
-	return value.replace(/[\u0000-\u001f\u007f-\u009f]/gu, "?");
-}
-
-export function errorMessage(error: unknown) {
-	return error instanceof Error ? error.message : String(error);
 }

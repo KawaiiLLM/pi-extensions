@@ -6,17 +6,15 @@ import { gzipSync } from "node:zlib";
 import { test } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
 import { expectedRemoteHead } from "../src/backends/sync-backend.js";
-import {
-	loadConfig,
-	localConfigPath,
-	statePathForConfig,
-	writeStateForConfig,
-} from "../src/settings/config.js";
+import type { CommandOptions } from "../src/commands/command-types.js";
+import { loadConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import type { Snapshot } from "../src/snapshot/snapshot-types.js";
+import { statePathForConfig, writeStateForConfig } from "../src/state/sync-state-store.js";
 import { SyncDecisionRequiredError } from "../src/sync/sync-decision.js";
 import { pull, push, status, syncBoth } from "../src/sync/sync-operations.js";
 import { RemoteSelectionMismatchError } from "../src/sync/sync-policy.js";
 import sync from "../src/sync.js";
-import type { CommandOptions, Snapshot } from "../src/types.js";
 import { snapshot, v3S3Settings, withTempHome } from "./helpers.js";
 import { MemorySyncBackend } from "./memory-sync-backend.js";
 

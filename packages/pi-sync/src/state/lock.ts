@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import lockfile from "proper-lockfile";
-import { ensureStateDir, lockPath } from "../settings/config.js";
-import type { CommandOptions, LockFile } from "../types.js";
+import type { CommandOptions } from "../commands/command-types.js";
 import { LOCK_GUARD_STALE_MS, LOCK_GUARD_UPDATE_MS } from "./lock-policy.js";
 import { LOCKFILE_FS_ADAPTER } from "./lockfile-fs.js";
+import type { LockFile } from "./state-types.js";
+import { ensureStateDir, lockPath } from "./sync-state-store.js";
 
 const LOCK_STALE_MS = 30 * 60 * 1000;
 const MAX_PROCESS_ID = 2_147_483_647;

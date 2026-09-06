@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import type { ResolvedS3Backend } from "../src/backends/backend-types.js";
 import {
 	historyKey,
 	latestKey,
@@ -13,7 +14,6 @@ import {
 	snapshotPath,
 	WebDavSyncBackend,
 } from "../src/backends/webdav/webdav-backend.js";
-import type { ResolvedS3Backend } from "../src/types.js";
 import { snapshot } from "./helpers.js";
 import { MockWebDavServer, webDavConfig } from "./mock-webdav-server.js";
 

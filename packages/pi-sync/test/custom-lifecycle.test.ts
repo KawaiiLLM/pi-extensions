@@ -4,7 +4,7 @@ import { initTheme, type KeybindingsManager } from "@earendil-works/pi-coding-ag
 import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import { localConfigPath } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
 import { showSyncManager } from "../src/ui/manager-ui.js";
 import { withTempHome } from "./helpers.js";
 

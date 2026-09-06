@@ -1,15 +1,14 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { setSyncSetupCompletions } from "../commands/command.js";
 import {
-	configuredSyncSetupNames,
 	loadConfig,
-	normalizeOnSwitch,
 	syncConfigReviewIdentity,
 	syncSetupReviewIdentity,
-	updateLocalConfig,
 } from "../settings/config.js";
-import type { OnSwitchAction } from "../types.js";
-import { safeTerminalText } from "../ui/sync-format.js";
+import { configuredSyncSetupNames, updateLocalConfig } from "../settings/settings-store.js";
+import type { OnSwitchAction } from "../settings/settings-types.js";
+import { normalizeOnSwitch } from "../settings/settings-validation.js";
+import { safeTerminalText } from "../ui/terminal-text.js";
 import { SetupPullRequiresUiError } from "./sync-errors.js";
 
 export { SetupPullRequiresUiError } from "./sync-errors.js";

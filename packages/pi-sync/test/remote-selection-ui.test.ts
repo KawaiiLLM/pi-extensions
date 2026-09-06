@@ -7,14 +7,10 @@ import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
 import { createCustomSelectorHarness, createMockContext } from "../../../test/support.js";
 import { expectedRemoteHead } from "../src/backends/sync-backend.js";
-import {
-	loadConfig,
-	localConfigPath,
-	readLocalConfigObject,
-	statePathForConfig,
-	syncConfigReviewFingerprint,
-	updateLocalConfig,
-} from "../src/settings/config.js";
+import { loadConfig, syncConfigReviewFingerprint } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { readLocalConfigObject, updateLocalConfig } from "../src/settings/settings-store.js";
+import { statePathForConfig } from "../src/state/sync-state-store.js";
 import { showRemoteSelectionReview } from "../src/ui/remote-selection-ui.js";
 import { snapshot, v3S3Settings, withTempHome } from "./helpers.js";
 import { MemorySyncBackend } from "./memory-sync-backend.js";

@@ -1,12 +1,12 @@
 export { completeSyncArguments, parseOptions, splitArgs } from "./commands/command.js";
 export { encodeKey, posixJoin, safeJoin, safeName } from "./paths.js";
 export {
-	isCloudflareR2Endpoint,
 	isEnabled,
 	isExplicitlyEnabled,
 	loadConfig,
 	sessionTokenWarnings,
 } from "./settings/config.js";
+export { isCloudflareR2Endpoint } from "./settings/settings-validation.js";
 export {
 	canonicalSnapshotPathForConfig,
 	collectFiles,

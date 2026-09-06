@@ -1,22 +1,21 @@
 import { truncateToWidth } from "@earendil-works/pi-tui";
-import {
-	activeLocalConfigPath,
-	isCloudflareR2Endpoint,
-	loadConfig,
-	readLocalConfigObject,
-	readStateForConfig,
-} from "../settings/config.js";
+import { loadConfig } from "../settings/config.js";
+import { activeLocalConfigPath } from "../settings/config-file.js";
+import { readLocalConfigObject } from "../settings/settings-store.js";
+import type { AnySyncConfig } from "../settings/settings-types.js";
+import { isCloudflareR2Endpoint, ownRecord } from "../settings/settings-validation.js";
 import {
 	inspectOperationAvailability,
 	type OperationAvailability,
 	operationBlocksChanges,
 	operationCanRecover,
 } from "../state/operation-availability.js";
+import { readStateForConfig } from "../state/sync-state-store.js";
+import { errorMessage } from "../sync/sync-errors.js";
 import { compareSyncInclude, syncIncludeSelection } from "../sync/sync-policy.js";
-import type { AnySyncConfig } from "../types.js";
-import { errorMessage, ownRecord, safeTerminalText } from "./manager-helpers.js";
 import { type SyncAttentionState, syncAttentionMatchesConfig } from "./sync-attention.js";
 import { countValidSyncSetups } from "./sync-setups-ui.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 export const MAIN_MENU_ACTIONS = [
 	"Sync now (recommended)",

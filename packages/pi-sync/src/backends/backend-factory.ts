@@ -1,4 +1,4 @@
-import type { AnySyncConfig } from "../types.js";
+import type { AnySyncConfig } from "../settings/settings-types.js";
 import type { SyncBackend } from "./sync-backend.js";
 
 export type SyncBackendFactory = {

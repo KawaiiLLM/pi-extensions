@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
+import type { Snapshot, SnapshotSelection } from "../../snapshot/snapshot-types.js";
 import { portableSnapshotSelection, snapshotSelectionInclude } from "../../sync/sync-policy.js";
-import type { Snapshot, SnapshotSelection } from "../../types.js";
 
 export const GIT_MANIFEST_VERSION = 2;
 export const MAX_GIT_MANIFEST_BYTES = 1024 * 1024;

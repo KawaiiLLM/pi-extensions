@@ -273,9 +273,16 @@ Color is supplementary, and the attention widget is informational rather than in
 
 ```text
 packages/pi-sync/
-├── src/                               # Backends, settings, snapshots, and recovery modules
+├── src/
 │   ├── index.ts                       # Thin Pi entrypoint
-│   └── sync-extension.ts              # Sync lifecycle and lazy loading
+│   ├── sync-extension.ts              # Registration and session lifecycle ownership
+│   ├── commands/                      # Parsing, execution, and attention dispatch
+│   ├── settings/                      # Schema, validation, resolution, and persistence
+│   ├── sync/                          # Queries, mutations, policy, and lazy loaders
+│   ├── snapshot/                      # Collection, session paths, apply, and recovery
+│   ├── backends/                      # Contract and Git, S3, and WebDAV transports
+│   ├── state/                         # Sync-state persistence, locks, and migration
+│   └── ui/                            # Manager, settings, reviews, and setup flows
 ├── dist/                              # Generated Jiti runtime
 ├── scripts/build-runtime.mjs          # Runtime builder
 ├── docs/                              # Published reference documentation
@@ -283,6 +290,8 @@ packages/pi-sync/
 ```
 
 The generated runtime is built from `src/index.ts` and does not import back into `src`.
+Internal modules use direct imports from their owners; `src/sync.ts` and `src/types.ts` retain compatibility exports.
+Backend transports do not depend on UI, and first-use operation and setup implementations remain lazy.
 
 ## 🔎 Keywords
 

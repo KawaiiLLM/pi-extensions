@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { assertWithinRoot, isPathInside } from "../paths.js";
-import { agentDir, stateDir } from "../settings/config.js";
 import { withLock } from "../state/lock.js";
-import type { SnapshotApplyPlan } from "../types.js";
+import { stateDir } from "../state/state-directory.js";
+import { agentDir } from "./session-paths.js";
 import { sessionStorageRoot } from "./snapshot-paths.js";
+import type { SnapshotApplyPlan } from "./snapshot-types.js";
 
 const JOURNAL_VERSION = 1;
 

@@ -10,8 +10,7 @@ import {
 	safeJoin,
 	toPosix,
 } from "../paths.js";
-import { agentDir } from "../settings/config.js";
-import type { Snapshot, SnapshotApplyPlan, SnapshotOptions } from "../types.js";
+import { agentDir } from "./session-paths.js";
 import {
 	createSnapshot,
 	isSessionFilePath,
@@ -24,6 +23,7 @@ import {
 	applySnapshotTransaction,
 	recoverPendingSnapshotTransactions,
 } from "./snapshot-transaction.js";
+import type { Snapshot, SnapshotApplyPlan, SnapshotOptions } from "./snapshot-types.js";
 
 function sha256(value: Buffer) {
 	return createHash("sha256").update(value).digest("hex");

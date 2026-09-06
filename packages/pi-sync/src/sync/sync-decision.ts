@@ -1,6 +1,9 @@
 import { syncConfigReviewIdentity } from "../settings/config.js";
-import type { AnySyncConfig, Snapshot, SyncState } from "../types.js";
-import { formatDiff, formatSnapshotOnlyDiff, safeTerminalText } from "../ui/sync-format.js";
+import type { AnySyncConfig } from "../settings/settings-types.js";
+import type { Snapshot } from "../snapshot/snapshot-types.js";
+import type { SyncState } from "../state/state-types.js";
+import { formatDiff, formatSnapshotOnlyDiff } from "../ui/sync-format.js";
+import { safeTerminalText } from "../ui/terminal-text.js";
 import { SyncDecisionRequiredError } from "./sync-errors.js";
 import { includeFromSelectionConfig } from "./sync-policy.js";
 import { syncPolicyChanged } from "./sync-state.js";

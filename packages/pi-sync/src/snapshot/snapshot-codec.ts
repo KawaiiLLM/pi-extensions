@@ -3,7 +3,7 @@ import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 import { createGunzip, gzip } from "node:zlib";
 import { snapshotSelectionInclude } from "../sync/sync-policy.js";
-import type { Snapshot } from "../types.js";
+import type { Snapshot } from "./snapshot-types.js";
 
 const VERSION = 1;
 const MAX_DECOMPRESSED_SNAPSHOT_BYTES = 512 * 1024 * 1024;

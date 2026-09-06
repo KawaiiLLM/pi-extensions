@@ -9,7 +9,9 @@ import {
 	syncConfigReviewFingerprint,
 } from "../settings/config.js";
 import { SyncSetupReviewChangedError, updateSyncSetup } from "../settings/settings-management.js";
+import type { AnySyncConfig, PartialConfig } from "../settings/settings-types.js";
 import { readSnapshotForHead } from "../sync/remote-snapshot.js";
+import { errorMessage } from "../sync/sync-errors.js";
 import {
 	compareSyncInclude,
 	inspectRemoteSelection,
@@ -17,13 +19,12 @@ import {
 	type RemoteSelectionState,
 	sameSyncInclude,
 } from "../sync/sync-policy.js";
-import type { AnySyncConfig, PartialConfig } from "../types.js";
 import {
 	type RunRoute,
 	type RunRouteResult,
 	runCancellableOperation,
 } from "./cancellable-operation.js";
-import { errorMessage, safeTerminalText } from "./sync-format.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 const STATUS_KEY = "sync";
 

@@ -1,8 +1,10 @@
 import fs from "node:fs/promises";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { defineMenu, runMenu } from "@narumitw/pi-tui-kit";
-import { agentDir, loadConfig, localConfigPath } from "../settings/config.js";
+import { loadConfig } from "../settings/config.js";
+import { localConfigPath } from "../settings/config-file.js";
 import { updateSyncSetup } from "../settings/settings-management.js";
+import { agentDir } from "../snapshot/session-paths.js";
 import {
 	BUILT_IN_SYNC_ROOTS,
 	isSafeCustomIncludePath,

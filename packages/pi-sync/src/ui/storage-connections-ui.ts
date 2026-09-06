@@ -1,25 +1,22 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { defineMenu, runMenu } from "@narumitw/pi-tui-kit";
-import { isCloudflareR2Endpoint, readLocalConfigObject } from "../settings/config.js";
 import {
 	addStorageConnection,
 	removeStorageConnection,
 	updateStorageConnection,
 } from "../settings/settings-management.js";
-import {
-	errorMessage,
-	ownRecord,
-	requiredInput,
-	requiredValueInput,
-	safeTerminalText,
-} from "./manager-helpers.js";
+import { readLocalConfigObject } from "../settings/settings-store.js";
+import { isCloudflareR2Endpoint, ownRecord } from "../settings/settings-validation.js";
+import { errorMessage } from "../sync/sync-errors.js";
 import { showAddGitStorageProfile, showEditGitStorageProfile } from "./setup/git-ui.js";
 import {
 	applyS3CredentialUpdate,
 	chooseS3Credentials,
 	chooseS3CredentialUpdate,
 } from "./setup/s3-credentials-ui.js";
+import { requiredInput, requiredValueInput } from "./setup/text-input.js";
 import { showAddWebDavStorageProfile, showEditWebDavStorageProfile } from "./setup/webdav-ui.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 export async function showStorageConnections(ctx: ExtensionCommandContext, signal?: AbortSignal) {
 	let selectedName: string | undefined;

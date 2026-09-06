@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { encodeKey, posixJoin } from "../../paths.js";
 import { sessionTokenWarnings } from "../../settings/config.js";
 import { decodeSnapshot, encodeSnapshot } from "../../snapshot/snapshot-codec.js";
+import type { Snapshot } from "../../snapshot/snapshot-types.js";
 import { portableSnapshotSelection } from "../../sync/sync-policy.js";
-import type { LatestPointer, RemoteObject, ResolvedS3Backend, Snapshot } from "../../types.js";
+import type { LatestPointer, RemoteObject, ResolvedS3Backend } from "../backend-types.js";
 import {
 	type BackendDiagnostic,
 	type ExpectedRemoteHead,

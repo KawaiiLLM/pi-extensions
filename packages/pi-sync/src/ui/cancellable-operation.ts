@@ -8,7 +8,7 @@ import { runCustomInteraction } from "@narumitw/pi-tui-kit";
 import type { SetupPullOutcome } from "../sync/setup-switch.js";
 import type { SyncDecision } from "../sync/sync-decision.js";
 import type { RemoteSelectionDecision } from "../sync/sync-policy.js";
-import { safeTerminalText } from "./manager-helpers.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 export type RunRouteResult =
 	| { kind: "completed"; outcome?: SetupPullOutcome }

@@ -1,13 +1,13 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth } from "@earendil-works/pi-tui";
 import { syncConfigReviewFingerprint } from "../settings/config.js";
+import type { AnySyncConfig } from "../settings/settings-types.js";
 import {
 	compareSyncInclude,
 	type RemoteSelectionDecision,
 	sameSyncInclude,
 } from "../sync/sync-policy.js";
-import type { AnySyncConfig } from "../types.js";
-import { safeTerminalText } from "./sync-format.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 const STATUS_KEY = "sync";
 const WIDGET_KEY = "sync:attention";

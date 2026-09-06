@@ -11,10 +11,11 @@ import {
 	updateStorageConnection,
 	updateSyncSetup,
 } from "../../settings/settings-management.js";
+import type { PartialConfig } from "../../settings/settings-types.js";
 import { DEFAULT_SYNC_INCLUDE } from "../../sync/sync-policy.js";
-import type { PartialConfig } from "../../types.js";
-import { requiredInput, requiredValueInput, safeTerminalText } from "../manager-helpers.js";
+import { safeTerminalText } from "../terminal-text.js";
 import { promptAvailableSetupStorage } from "./setup-location-ui.js";
+import { requiredInput, requiredValueInput } from "./text-input.js";
 
 export async function showGitSetup(
 	ctx: ExtensionCommandContext,

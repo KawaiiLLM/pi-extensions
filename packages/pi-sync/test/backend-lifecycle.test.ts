@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
-import { localConfigPath } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
 import sync from "../src/sync.js";
 import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
 

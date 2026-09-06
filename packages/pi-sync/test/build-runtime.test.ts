@@ -10,6 +10,7 @@ const packageRoot = resolve("packages/pi-sync");
 const builderUrl = pathToFileURL(join(packageRoot, "scripts/build-runtime.mjs")).href;
 
 type BuildMetadata = {
+	inputs?: Record<string, { imports: Array<{ path: string; kind: string; external?: boolean }> }>;
 	outputs?: Record<
 		string,
 		{
@@ -25,6 +26,7 @@ type RuntimeBuilder = {
 		outputDirectory?: string;
 		validateOutput?: (outputDirectory: string) => Promise<void>;
 	}): Promise<BuildMetadata>;
+	validateGeneratedFiles(outputDirectory: string): Promise<void>;
 	validateEagerGraph(metadata: BuildMetadata): {
 		eagerInputs: Set<string>;
 		eagerOutputs: Set<string>;
@@ -41,10 +43,17 @@ test("generated runtime preserves every first-use import boundary", async () => 
 	try {
 		const metadata = await builder.buildRuntime({ outputDirectory: join(root, "dist") });
 		const { eagerInputs } = builder.validateEagerGraph(metadata);
+		assertSourceBoundaries(metadata);
 		for (const lazyInput of [
 			"src/sync/setup-switch.ts",
 			"src/sync/sync-operations.ts",
+			"src/sync/sync-queries.ts",
+			"src/sync/sync-mutations.ts",
 			"src/ui/manager-ui.ts",
+			"src/ui/setup/setup-wizard.ts",
+			"src/ui/setup/setup-switcher.ts",
+			"src/ui/setup/setup-actions.ts",
+			"src/ui/setup/s3-ui.ts",
 			"src/ui/setup/setup-location-ui.ts",
 			"src/ui/manager-result-dispatcher.ts",
 			"src/ui/file-selection.ts",
@@ -59,6 +68,20 @@ test("generated runtime preserves every first-use import boundary", async () => 
 				`${lazyInput} became eager`,
 			);
 		}
+		const protectedInput = "src/sync/sync-mutations.ts";
+		const missing = structuredClone(metadata);
+		for (const output of Object.values(missing.outputs ?? {})) {
+			if (output.inputs) delete output.inputs[protectedInput];
+		}
+		assert.throws(() => builder.validateEagerGraph(missing), /missing from build inputs/u);
+
+		const eager = structuredClone(metadata);
+		const entry = Object.values(eager.outputs ?? {}).find(
+			(output) => output.entryPoint === "src/index.ts",
+		);
+		assert.ok(entry?.inputs);
+		entry.inputs[protectedInput] = { bytesInOutput: 1 };
+		assert.throws(() => builder.validateEagerGraph(eager), /First-use implementation is eager/u);
 	} finally {
 		await rm(root, { force: true, recursive: true });
 	}
@@ -105,10 +128,12 @@ test("generated runtime is mapped, external, self-contained, and loadable by Pi"
 		const loaded = loader.getExtensions();
 		assert.deepEqual(loaded.errors, []);
 		assert.equal(loaded.extensions.length, 1);
-		const command = loaded.extensions[0]?.commands.get("sync");
+		const extension = loaded.extensions[0];
+		assert.ok(extension);
+		const command = extension.commands.get("sync");
 		assert.ok(command);
 		const titles: string[] = [];
-		const { ctx } = createMockContext({
+		const { ctx, statuses, notifications } = createMockContext({
 			hasUI: true,
 			mode: "tui",
 			input: async (title: string) =>
@@ -121,6 +146,16 @@ test("generated runtime is mapped, external, self-contained, and loadable by Pi"
 			},
 		});
 		try {
+			const starts = extension.handlers.get("session_start");
+			const shutdowns = extension.handlers.get("session_shutdown");
+			assert.equal(starts?.length, 1);
+			assert.equal(shutdowns?.length, 1);
+			statuses.set("unrelated", "keep");
+			for (const reason of ["startup", "new"]) {
+				statuses.set("sync", "stale");
+				for (const handler of starts ?? []) await handler({ type: "session_start", reason }, ctx);
+				assert.equal(statuses.get("sync"), undefined);
+			}
 			await command.handler("init", ctx);
 			assert.ok(
 				titles.some(
@@ -129,6 +164,19 @@ test("generated runtime is mapped, external, self-contained, and loadable by Pi"
 				),
 				titles.join("\n"),
 			);
+			await assert.rejects(
+				readFile(join(agentDir, "pi-sync.json")),
+				(error: NodeJS.ErrnoException) => error.code === "ENOENT",
+			);
+			for (const reason of ["reload", "quit", "quit"]) {
+				statuses.set("sync", "stale");
+				for (const handler of shutdowns ?? []) {
+					await handler({ type: "session_shutdown", reason }, ctx);
+				}
+				assert.equal(statuses.get("sync"), undefined);
+			}
+			assert.equal(statuses.get("unrelated"), "keep");
+			assert.deepEqual(notifications, []);
 		} finally {
 			loaded.runtime.invalidate("generated setup smoke complete");
 		}
@@ -160,6 +208,135 @@ test("failed generated-output validation preserves the previous runtime", async 
 		await rm(root, { force: true, recursive: true });
 	}
 });
+
+test("repeated runtime builds are deterministic and remove stale chunks", async () => {
+	const builder = await loadBuilder();
+	const root = await mkdtemp(join(packageRoot, ".pi-sync-build-test-"));
+	const output = join(root, "dist");
+	try {
+		await builder.buildRuntime({ outputDirectory: output });
+		const files = await listFiles(output);
+		const first = await Promise.all(files.map((file) => readFile(join(output, file), "utf8")));
+		await writeFile(join(output, "chunks/stale.ts"), "stale");
+		await builder.buildRuntime({ outputDirectory: output });
+		assert.deepEqual(await listFiles(output), files);
+		assert.deepEqual(
+			await Promise.all(files.map((file) => readFile(join(output, file), "utf8"))),
+			first,
+		);
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
+});
+
+test("failed runtime publication restores the previous output", async () => {
+	const builder = await loadBuilder();
+	const root = await mkdtemp(join(packageRoot, ".pi-sync-build-test-"));
+	const output = join(root, "dist");
+	try {
+		await mkdir(output);
+		await writeFile(join(output, "previous.ts"), "previous");
+		await assert.rejects(
+			builder.buildRuntime({
+				outputDirectory: output,
+				validateOutput: async (staging) => {
+					await builder.validateGeneratedFiles(staging);
+					// Simulate staging disappearing after validation but before publication.
+					await rm(staging, { recursive: true });
+				},
+			}),
+			(error: NodeJS.ErrnoException) => error.code === "ENOENT",
+		);
+		assert.deepEqual(await listFiles(root), ["dist/previous.ts"]);
+		assert.equal(await readFile(join(output, "previous.ts"), "utf8"), "previous");
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
+});
+
+test("generated validation resolves static and dynamic imports to exact emitted targets", async () => {
+	const builder = await loadBuilder();
+	const root = await mkdtemp(join(packageRoot, ".pi-sync-build-test-"));
+	const banner = [
+		"// @generated by scripts/build-runtime.mjs; do not edit.",
+		"// @ts-nocheck -- generated JavaScript uses a .ts extension for Pi's Jiti loader.",
+	].join("\n");
+	try {
+		await mkdir(join(root, "chunks"));
+		await writeFile(join(root, "chunks/valid.ts"), `${banner}\nexport const value = 1;`);
+		await writeFile(join(root, "chunks/valid.ts.map"), "{}");
+		await writeFile(join(root, "index.ts.map"), "{}");
+		for (const statement of [
+			'export { value } from "./chunks/valid.ts";',
+			'export const load = () => import("./chunks/valid.ts");',
+		]) {
+			await writeFile(join(root, "index.ts"), `${banner}\n${statement}`);
+			await builder.validateGeneratedFiles(root);
+		}
+		for (const specifier of [
+			"./chunks/missing.ts",
+			"./chunks/valid",
+			"./chunks/valid.js",
+			"../outside.ts",
+		]) {
+			for (const statement of [
+				`export { value } from "${specifier}";`,
+				`export const load = () => import("${specifier}");`,
+			]) {
+				await writeFile(join(root, "index.ts"), `${banner}\n${statement}`);
+				await assert.rejects(builder.validateGeneratedFiles(root), /no exact runtime target/u);
+			}
+		}
+	} finally {
+		await rm(root, { force: true, recursive: true });
+	}
+});
+
+test("source boundary audit rejects backend UI imports and static cycles", () => {
+	assert.throws(
+		() =>
+			assertSourceBoundaries({
+				inputs: {
+					"src/backends/transport.ts": {
+						imports: [{ path: "src/ui/menu.ts", kind: "dynamic-import" }],
+					},
+				},
+			}),
+		/imports UI/u,
+	);
+	assert.throws(
+		() =>
+			assertSourceBoundaries({
+				inputs: {
+					"first.ts": { imports: [{ path: "second.ts", kind: "import-statement" }] },
+					"second.ts": { imports: [{ path: "first.ts", kind: "import-statement" }] },
+				},
+			}),
+		/static source import cycle/u,
+	);
+});
+
+function assertSourceBoundaries(metadata: BuildMetadata) {
+	const inputs = metadata.inputs;
+	assert.ok(inputs, "source graph must be available for boundary checks");
+	const active = new Set<string>();
+	const visited = new Set<string>();
+	function visit(file: string) {
+		assert.equal(active.has(file), false, `static source import cycle at ${file}`);
+		if (visited.has(file)) return;
+		active.add(file);
+		for (const imported of inputs?.[file]?.imports ?? []) {
+			if (imported.external) continue;
+			if (file.startsWith("src/backends/")) {
+				assert.equal(imported.path.startsWith("src/ui/"), false, `${file} imports UI`);
+			}
+			if (imported.kind !== "dynamic-import") visit(imported.path);
+		}
+		active.delete(file);
+		visited.add(file);
+	}
+	for (const file of Object.keys(inputs)) visit(file);
+}
 
 async function listFiles(directory: string, prefix = ""): Promise<string[]> {
 	const { readdir } = await import("node:fs/promises");

@@ -18,13 +18,9 @@ import {
 	usage,
 	validateCommandOptions,
 } from "../src/commands/command.js";
-import {
-	loadConfig,
-	localConfigPath,
-	readLocalConfigObject,
-	syncConfigReviewFingerprint,
-	updateLocalConfig,
-} from "../src/settings/config.js";
+import { loadConfig, syncConfigReviewFingerprint } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { readLocalConfigObject, updateLocalConfig } from "../src/settings/settings-store.js";
 import { withStateDirectoryAccess } from "../src/state/state-directory.js";
 import { syncBoth } from "../src/sync/sync-operations.js";
 import { BUILT_IN_SYNC_ROOTS, RemoteSelectionMismatchError } from "../src/sync/sync-policy.js";

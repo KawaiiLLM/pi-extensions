@@ -1,7 +1,9 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { defineMenu, runMenu } from "@narumitw/pi-tui-kit";
-import { loadConfig, localConfigPath, updateLocalConfig } from "../settings/config.js";
+import { loadConfig } from "../settings/config.js";
+import { localConfigPath } from "../settings/config-file.js";
 import { updateSyncSetup } from "../settings/settings-management.js";
+import { updateLocalConfig } from "../settings/settings-store.js";
 import {
 	SETUP_SWITCH_ACTION_OPTIONS,
 	saveOnSwitch,
@@ -10,7 +12,7 @@ import {
 } from "../sync/setup-switch.js";
 import type { RunRoute } from "./cancellable-operation.js";
 import { dispatchManagerResult } from "./manager-result-dispatcher.js";
-import { safeTerminalText } from "./sync-format.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 export type SyncSettingsRoute = RunRoute;
 

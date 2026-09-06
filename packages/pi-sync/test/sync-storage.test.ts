@@ -8,15 +8,11 @@ import { initTheme } from "@earendil-works/pi-coding-agent";
 import { test } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
 import { S3Client } from "../src/backends/s3/s3-client.js";
-import {
-	configuredSessionDir,
-	ensureStateDir,
-	loadPartialConfig,
-	localConfigPath,
-	lockPath,
-	readState,
-} from "../src/settings/config.js";
+import { loadPartialConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { configuredSessionDir } from "../src/snapshot/session-paths.js";
 import { lockFileExists, readLock, withLock } from "../src/state/lock.js";
+import { ensureStateDir, lockPath, readState } from "../src/state/sync-state-store.js";
 import { backupLocal } from "../src/sync/sync-operations.js";
 import sync, {
 	appliedFileHashMap,

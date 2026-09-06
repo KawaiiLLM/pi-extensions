@@ -1,7 +1,9 @@
 import type { RemoteHead, SyncBackend } from "../backends/sync-backend.js";
 import { syncConfigReviewFingerprint } from "../settings/config.js";
-import type { AnySyncConfig, Snapshot } from "../types.js";
-import { safeTerminalText } from "../ui/sync-format.js";
+import type { AnySyncConfig } from "../settings/settings-types.js";
+import { filterSnapshotForConfigPolicy } from "../snapshot/snapshot.js";
+import type { Snapshot } from "../snapshot/snapshot-types.js";
+import { safeTerminalText } from "../ui/terminal-text.js";
 import {
 	inspectRemoteSelection,
 	type RemoteSelectionState,
@@ -57,4 +59,25 @@ export function formatRemoteSelectionStatus(state: RemoteSelectionState | undefi
 
 function safeList(values: readonly string[]) {
 	return values.length > 0 ? values.map(safeTerminalText).join(", ") : "none";
+}
+
+export async function readRemoteSnapshot(
+	backend: SyncBackend,
+	config: AnySyncConfig,
+	signal?: AbortSignal,
+	options: { allowSelectionDifference?: boolean } = {},
+) {
+	const head = await backend.readHead(signal);
+	if (!head) return { head: undefined, snapshot: undefined, selectionState: undefined };
+	const snapshot = await readSnapshotForHead(backend, head, signal);
+	const selectionState = inspectRemoteSelection(config.include, snapshot);
+	if (!options.allowSelectionDifference && selectionState.kind === "different") {
+		const configIdentity = syncConfigReviewFingerprint(config);
+		throw remoteSelectionMismatch(config, selectionState.include, configIdentity);
+	}
+	return {
+		head,
+		snapshot: filterSnapshotForConfigPolicy(snapshot, config),
+		selectionState,
+	};
 }

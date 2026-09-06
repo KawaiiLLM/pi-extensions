@@ -1,7 +1,7 @@
 import { createHash, createHmac } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
 import { encodeKey, posixJoin } from "../../paths.js";
-import type { RemoteObject, ResolvedS3Backend } from "../../types.js";
+import type { RemoteObject, ResolvedS3Backend } from "../backend-types.js";
 
 const MAX_JSON_RESPONSE_BYTES = 1024 * 1024;
 const MAX_SNAPSHOT_RESPONSE_BYTES = 256 * 1024 * 1024;

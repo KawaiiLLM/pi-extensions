@@ -16,7 +16,14 @@ const GENERATED_BANNER = [
 const FORBIDDEN_EAGER_INPUTS = [
 	"src/sync/setup-switch.ts",
 	"src/sync/sync-operations.ts",
+	"src/sync/sync-queries.ts",
+	"src/sync/sync-mutations.ts",
 	"src/ui/manager-ui.ts",
+	"src/ui/setup/setup-wizard.ts",
+	"src/ui/setup/setup-switcher.ts",
+	"src/ui/setup/setup-actions.ts",
+	"src/ui/setup/s3-ui.ts",
+	"src/ui/setup/setup-location-ui.ts",
 	"src/ui/manager-result-dispatcher.ts",
 	"src/ui/file-selection.ts",
 	"src/ui/remote-selection-ui.ts",
@@ -72,9 +79,11 @@ export function validateEagerGraph(metadata) {
 	);
 	if (!entry) throw new Error("Generated runtime metadata has no src/index.ts entrypoint");
 
+	const allInputs = new Set();
 	for (const output of Object.values(outputs)) {
 		for (const inputPath of Object.keys(output.inputs ?? {})) {
 			const normalized = normalizePath(inputPath);
+			allInputs.add(normalized);
 			if (normalized.includes("/node_modules/")) {
 				throw new Error(`Bundled package input: ${normalized}`);
 			}
@@ -105,7 +114,10 @@ export function validateEagerGraph(metadata) {
 	}
 
 	for (const forbidden of FORBIDDEN_EAGER_INPUTS) {
-		if ([...eagerInputs].some((input) => input.endsWith(`/${forbidden}`))) {
+		if (!allInputs.has(`/${forbidden}`)) {
+			throw new Error(`First-use implementation is missing from build inputs: ${forbidden}`);
+		}
+		if (eagerInputs.has(`/${forbidden}`)) {
 			throw new Error(`First-use implementation is eager: ${forbidden}`);
 		}
 	}
@@ -120,6 +132,32 @@ export async function validateGeneratedFiles(outputDirectory) {
 	}
 	if (!runtimeFiles.some((path) => path.startsWith("chunks/"))) {
 		throw new Error("Generated runtime has no lazy chunks");
+	}
+
+	// Parse emitted JavaScript with the existing bundler rather than matching import-like text.
+	// Non-bundling mode inventories static re-exports and dynamic imports without resolving them.
+	const parsed = await build({
+		entryPoints: runtimeFiles.map((file) => resolve(outputDirectory, file)),
+		outdir: resolve(outputDirectory, ".validation"),
+		bundle: false,
+		format: "esm",
+		platform: "node",
+		metafile: true,
+		write: false,
+	});
+	for (const output of Object.values(parsed.metafile.outputs)) {
+		for (const imported of output.imports) {
+			if (!imported.path.startsWith("./") && !imported.path.startsWith("../")) continue;
+			const target = relative(
+				resolve(outputDirectory),
+				resolve(dirname(resolve(output.entryPoint)), imported.path),
+			).replaceAll("\\", "/");
+			if (!runtimeFiles.includes(target)) {
+				throw new Error(
+					`Generated relative import has no exact runtime target: ${imported.path} from ${output.entryPoint}`,
+				);
+			}
+		}
 	}
 
 	for (const runtimePath of runtimeFiles) {

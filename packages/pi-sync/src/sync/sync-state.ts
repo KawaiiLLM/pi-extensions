@@ -6,7 +6,8 @@ import {
 	isConfiguredSnapshotPath,
 	isSessionPath,
 } from "../snapshot/snapshot.js";
-import type { Snapshot, SyncState } from "../types.js";
+import type { Snapshot } from "../snapshot/snapshot-types.js";
+import type { SyncState } from "../state/state-types.js";
 import {
 	customIncludePathsByLower,
 	includeFromSelectionConfig,

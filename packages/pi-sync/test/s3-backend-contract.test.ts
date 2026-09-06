@@ -1,4 +1,5 @@
-import type { LatestPointer, SyncConfig } from "../src/types.js";
+import type { LatestPointer } from "../src/backends/backend-types.js";
+import type { SyncConfig } from "../src/settings/settings-types.js";
 import { registerSyncBackendContractSuite } from "./backend-contract-suite.js";
 import { createSyncBackend } from "./backend-factory-eager.js";
 

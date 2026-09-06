@@ -4,12 +4,12 @@ import path from "node:path";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
 import { expectedRemoteHead } from "../src/backends/sync-backend.js";
-import {
-	loadConfig,
-	localConfigPath,
-	readStateForConfig,
-	statePathForConfig,
-} from "../src/settings/config.js";
+import type { CommandOptions } from "../src/commands/command-types.js";
+import { loadConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import type { SyncConfig } from "../src/settings/settings-types.js";
+import type { Snapshot } from "../src/snapshot/snapshot-types.js";
+import { readStateForConfig, statePathForConfig } from "../src/state/sync-state-store.js";
 import {
 	diff,
 	doctor,
@@ -22,7 +22,6 @@ import {
 	status,
 	syncBoth,
 } from "../src/sync/sync-operations.js";
-import type { CommandOptions, Snapshot, SyncConfig } from "../src/types.js";
 import { v3S3Settings as requiredConfig, snapshot, withTempHome } from "./helpers.js";
 import { MemorySyncBackend } from "./memory-sync-backend.js";
 

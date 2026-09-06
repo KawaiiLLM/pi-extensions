@@ -1,6 +1,6 @@
-import type { LockFile } from "../types.js";
-import { errorMessage } from "../ui/manager-helpers.js";
+import { errorMessage } from "../sync/sync-errors.js";
 import { inspectLock, isLockGuardHeld, isStaleLock, type LockInspection } from "./lock.js";
+import type { LockFile } from "./state-types.js";
 
 export type OperationAvailability =
 	| { kind: "free" }

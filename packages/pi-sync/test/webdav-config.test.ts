@@ -7,7 +7,9 @@ import {
 	normalizeWebDavUrl,
 	validateWebDavCredentials,
 } from "../src/backends/webdav/webdav-config.js";
-import { loadConfig, localConfigPath, statePathForConfig } from "../src/settings/config.js";
+import { loadConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { statePathForConfig } from "../src/state/sync-state-store.js";
 import { v3WebDavSettings, withTempHome } from "./helpers.js";
 
 test("version 3 resolves WebDAV connection credentials and complete storage path", async () => {

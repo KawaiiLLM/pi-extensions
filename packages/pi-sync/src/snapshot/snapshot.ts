@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { isDeniedPath, posixJoin, safeJoin, toPosix } from "../paths.js";
-import { agentDir, configuredSessionDir } from "../settings/config.js";
+import { agentDir, configuredSessionDir } from "./session-paths.js";
 import { sessionStorageRoot } from "./snapshot-paths.js";
 
 export { isDeniedPath } from "../paths.js";
@@ -24,7 +24,7 @@ import {
 	snapshotSelectionInclude,
 	syncIncludeSelection,
 } from "../sync/sync-policy.js";
-import type { Snapshot, SnapshotFile, SnapshotOptions } from "../types.js";
+import type { Snapshot, SnapshotFile, SnapshotOptions } from "./snapshot-types.js";
 
 export { canonicalSnapshotPathForConfig, isConfiguredSnapshotPath } from "../sync/sync-policy.js";
 

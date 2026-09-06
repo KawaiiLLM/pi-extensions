@@ -1,4 +1,4 @@
-import type { Snapshot, SnapshotSelection } from "../types.js";
+import type { Snapshot, SnapshotSelection } from "../snapshot/snapshot-types.js";
 
 export type PublicationCapability =
 	| "read-check-write-verify"

@@ -11,11 +11,11 @@ import {
 	updateStorageConnection,
 	updateSyncSetup,
 } from "../../settings/settings-management.js";
+import type { PartialConfig } from "../../settings/settings-types.js";
 import { DEFAULT_SYNC_INCLUDE } from "../../sync/sync-policy.js";
-import type { PartialConfig } from "../../types.js";
-import { promptTextInput } from "../manager-helpers.js";
 import { promptSecret } from "../secret-input.js";
 import { promptAvailableSetupStorage } from "./setup-location-ui.js";
+import { promptTextInput } from "./text-input.js";
 
 export async function showWebDavSetup(
 	ctx: ExtensionCommandContext,

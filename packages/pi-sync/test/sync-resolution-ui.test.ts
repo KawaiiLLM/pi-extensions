@@ -7,11 +7,11 @@ import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
 import {
 	loadConfig,
-	localConfigPath,
 	syncConfigReviewFingerprint,
 	syncConfigReviewIdentity,
-	updateLocalConfig,
 } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { updateLocalConfig } from "../src/settings/settings-store.js";
 import type { SyncDecision } from "../src/sync/sync-decision.js";
 import { dispatchManagerResult } from "../src/ui/manager-result-dispatcher.js";
 import { showSyncManager } from "../src/ui/manager-ui.js";

@@ -2,8 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { posixJoin } from "../../paths.js";
+import type { Snapshot, SnapshotFile } from "../../snapshot/snapshot-types.js";
 import { stateDir } from "../../state/state-directory.js";
-import type { ResolvedGitBackend, Snapshot, SnapshotFile } from "../../types.js";
+import type { ResolvedGitBackend } from "../backend-types.js";
 import {
 	type BackendDiagnostic,
 	type ExpectedRemoteHead,

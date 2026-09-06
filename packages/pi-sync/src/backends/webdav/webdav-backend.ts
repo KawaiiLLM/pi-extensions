@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { decodeSnapshot, encodeSnapshot } from "../../snapshot/snapshot-codec.js";
+import type { Snapshot } from "../../snapshot/snapshot-types.js";
 import { portableSnapshotSelection } from "../../sync/sync-policy.js";
-import type { LatestPointer, RemoteObject, ResolvedWebDavBackend, Snapshot } from "../../types.js";
+import type { LatestPointer, RemoteObject, ResolvedWebDavBackend } from "../backend-types.js";
 import {
 	type BackendDiagnostic,
 	type ExpectedRemoteHead,

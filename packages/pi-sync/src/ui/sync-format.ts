@@ -1,11 +1,10 @@
-import { agentDir } from "../settings/config.js";
-
-export { errorMessage } from "../sync/sync-errors.js";
-
 import type { PublicationCapability, RemoteHead } from "../backends/sync-backend.js";
+import type { CommonSyncConfig } from "../settings/settings-types.js";
+import { agentDir } from "../snapshot/session-paths.js";
+import type { Snapshot } from "../snapshot/snapshot-types.js";
 import { inspectRemoteSelection } from "../sync/sync-policy.js";
 import { fileHashMap } from "../sync/sync-state.js";
-import type { CommonSyncConfig, Snapshot } from "../types.js";
+import { safeTerminalText } from "./terminal-text.js";
 
 export function formatDiff(local: Snapshot, remote: Snapshot) {
 	const localMap = fileHashMap(local);
@@ -159,11 +158,6 @@ export function publicationCapabilityDescription(capability: PublicationCapabili
 		case "read-check-write-verify":
 			return "read-check-write-verify (visible races rejected; simultaneous unseen races remain possible)";
 	}
-}
-
-export function safeTerminalText(value: string) {
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: Escape untrusted terminal controls.
-	return value.replace(/[\u0000-\u001f\u007f-\u009f]/gu, "?");
 }
 
 export function redact(value: string) {

@@ -6,12 +6,9 @@ import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
 import { WebDavClient } from "../src/backends/webdav/webdav-client.js";
-import {
-	loadConfig,
-	loadPartialConfig,
-	localConfigPath,
-	readLocalConfigObject,
-} from "../src/settings/config.js";
+import { loadConfig, loadPartialConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { readLocalConfigObject } from "../src/settings/settings-store.js";
 import {
 	showAddWebDavStorageProfile,
 	showAddWebDavTarget,

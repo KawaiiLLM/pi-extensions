@@ -7,7 +7,9 @@ import {
 	normalizeGitRemote,
 	normalizeGitRemoteIdentity,
 } from "../src/backends/git/git-config.js";
-import { loadConfig, localConfigPath, statePathForConfig } from "../src/settings/config.js";
+import { loadConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { statePathForConfig } from "../src/state/sync-state-store.js";
 import { withTempHome } from "./helpers.js";
 
 function gitSettings(path = "pi-sync/home", branch = "pi-sync/home") {

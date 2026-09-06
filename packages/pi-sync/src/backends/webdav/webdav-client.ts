@@ -1,5 +1,5 @@
 import { XMLParser } from "fast-xml-parser";
-import type { RemoteObject, ResolvedWebDavBackend } from "../../types.js";
+import type { RemoteObject, ResolvedWebDavBackend } from "../backend-types.js";
 
 const JSON_LIMIT = 1024 * 1024;
 const ERROR_LIMIT = 64 * 1024;

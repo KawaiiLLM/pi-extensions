@@ -1,5 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { CommandArgumentCompletion, CommandOptions } from "../types.js";
+import type { CommandArgumentCompletion, CommandOptions } from "./command-types.js";
 
 const YES_FLAG_COMPLETIONS: readonly CommandArgumentCompletion[] = [
 	{ value: "--yes", label: "--yes", description: "Skip confirmation prompts" },

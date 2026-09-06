@@ -1,6 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { validateConfigName } from "../../settings/config.js";
-import { errorMessage, safeTerminalText } from "../manager-helpers.js";
+import { validateConfigName } from "../../settings/settings-validation.js";
+import { errorMessage } from "../../sync/sync-errors.js";
+import { safeTerminalText } from "../terminal-text.js";
 
 export async function promptInitialSetupName(ctx: ExtensionCommandContext, signal?: AbortSignal) {
 	while (!signal?.aborted) {
