@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { initTheme } from "@earendil-works/pi-coding-agent";
-import { test } from "vitest";
+import { test, vi } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
 import { S3Client } from "../src/backends/s3/s3-client.js";
 import { loadPartialConfig } from "../src/settings/config.js";
@@ -864,12 +864,15 @@ test("doctor warns when a valid lock owner has exited", async () => {
 		const { ctx, notifications } = createMockContext({ hasUI: true });
 
 		await mock.commands.get("sync")?.handler("doctor", ctx);
-		assert.match(notifications.at(-1)?.message ?? "", /lock: stale.*unlock/);
+		assert.match(notifications.at(-1)?.message ?? "", /lock: stale.*\/sync unlock --stale/);
 		assert.equal(notifications.at(-1)?.level, "warning");
 	});
 });
 
 test("doctor reports live and free lock states", async () => {
+	using _fetch = vi
+		.spyOn(globalThis, "fetch")
+		.mockResolvedValue(new Response(null, { status: 200 }));
 	await withTempHome(async () => {
 		await ensureStateDir();
 		writeFileSync(localConfigPath(), JSON.stringify(v3S3Settings()));

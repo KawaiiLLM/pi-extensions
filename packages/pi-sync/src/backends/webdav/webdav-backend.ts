@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { decodeSnapshot, encodeSnapshot } from "../../snapshot/snapshot-codec.js";
 import type { Snapshot } from "../../snapshot/snapshot-types.js";
+import { syncErrorGuidance } from "../../sync/sync-error-guidance.js";
 import { portableSnapshotSelection } from "../../sync/sync-policy.js";
 import type { LatestPointer, RemoteObject, ResolvedWebDavBackend } from "../backend-types.js";
 import {
@@ -199,6 +200,12 @@ export class WebDavSyncBackend implements SyncBackend {
 				level: "info",
 				message: `webdav URL/TLS/auth: configured (${webDavStorageLocation(this.config)})`,
 			},
+			{
+				key: "webdav-scope",
+				level: "info",
+				message:
+					"webdav check scope: temporary write/delete probe; repair the active snapshot's history entry if missing. No local content is applied.",
+			},
 		];
 		try {
 			await this.runCapabilityProbe(signal);
@@ -218,7 +225,7 @@ export class WebDavSyncBackend implements SyncBackend {
 			diagnostics.push({
 				key: "webdav-probe",
 				level: "error",
-				message: `webdav publication is read-only until diagnostics pass: ${errorMessage(error)}`,
+				message: `webdav publication is read-only until diagnostics pass: ${syncErrorGuidance(error)}`,
 			});
 			return diagnostics;
 		}
@@ -233,7 +240,7 @@ export class WebDavSyncBackend implements SyncBackend {
 			diagnostics.push({
 				key: "webdav-history",
 				level: "error",
-				message: `webdav history repair failed: ${errorMessage(error)}`,
+				message: `webdav history repair failed: ${syncErrorGuidance(error)}`,
 			});
 		}
 		return diagnostics;

@@ -787,6 +787,8 @@ test("Git diagnostics redact remote and private cache paths", async () => {
 		assert.doesNotMatch(output, new RegExp(fixture.remote.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")));
 		assert.doesNotMatch(output, new RegExp(cacheRoot.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")));
 		assert.match(output, /git remote:/i);
+		assert.match(output, /Write access is not tested/u);
+		assert.match(output, /Check setup/u);
 	} finally {
 		rmSync(fixture.root, { recursive: true, force: true });
 	}

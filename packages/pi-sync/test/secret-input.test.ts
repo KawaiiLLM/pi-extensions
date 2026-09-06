@@ -24,6 +24,48 @@ test("masked secret input never renders plaintext and submits pasted text", asyn
 	assert.equal(await pending, secret);
 });
 
+test("blank secret retries in place and split paste cannot submit the draft", async () => {
+	const mapping: Record<string, string> = {
+		"tui.input.submit": "\r",
+		"tui.select.cancel": "\u001b",
+		"tui.editor.deleteCharBackward": "\u007f",
+	};
+	const tui = createTuiHarness({
+		width: 32,
+		keybindings: {
+			matches: (data, binding) => data === mapping[binding],
+			getKeys: (binding) =>
+				binding === "tui.input.submit"
+					? ["enter"]
+					: binding === "tui.select.cancel"
+						? ["escape"]
+						: ["backspace"],
+		},
+	});
+	const { ctx, notifications } = createMockContext({
+		hasUI: true,
+		mode: "tui",
+		custom: tui.custom,
+	});
+	const pending = promptSecret(ctx, "Password");
+	await tui.waitForOpen();
+	tui.press("tui.input.submit");
+	assert.equal(tui.isOpen, true);
+	assert.match(notifications[0]?.message ?? "", /required/u);
+	tui.send("\u001b[200~first");
+	tui.send("\r");
+	assert.equal(tui.isOpen, true);
+	tui.send("second\u0007\u001b[201~");
+	tui.press("tui.input.submit");
+	assert.equal(tui.isOpen, true);
+	assert.match(notifications.at(-1)?.message ?? "", /control characters/u);
+	tui.send("\u007f");
+	tui.send("\u007f");
+	tui.press("tui.input.submit");
+	assert.equal(await pending, "firstsecon");
+	assert.equal(tui.openCount, 1);
+});
+
 test("stored S3 credential setup aborts with its owning session", async () => {
 	const controller = new AbortController();
 	let resolveInput: ((value: string) => void) | undefined;
@@ -53,12 +95,13 @@ test("stored S3 credential setup aborts with its owning session", async () => {
 	assert.equal(customCalls, 0);
 });
 
-test("stored S3 credentials reject a blank access key ID", async () => {
+test("stored S3 credentials retry a blank access key ID until cancellation", async () => {
+	const inputs = ["", undefined];
 	const { ctx, notifications } = createMockContext({
 		hasUI: true,
 		mode: "tui",
 		select: async () => "Store credentials privately",
-		input: async () => "",
+		input: async () => inputs.shift(),
 	});
 
 	assert.equal(await chooseS3Credentials(ctx), undefined);
@@ -89,7 +132,7 @@ test("masked secret input uses injected submit and cancellation keybindings", as
 	const pending = promptSecret(ctx, "Password");
 	await tui.waitForOpen();
 	const frame = tui.render().join("\n");
-	assert.match(frame, /s save • q\/ctrl\+c cancel/u);
+	assert.match(frame, /s continue • q\/ctrl\+c cancel/u);
 	assert.equal(frame.match(/ctrl\+c/gu)?.length, 1);
 	tui.send("q");
 	assert.equal(await pending, undefined);
@@ -110,6 +153,7 @@ test("masked secret input keeps Ctrl+C when cancellation is remapped", async () 
 	await tui.waitForOpen();
 	tui.type("secret");
 	assert.doesNotMatch(tui.render().join("\n"), /secret/u);
+	tui.send("\u001b[200~unfinished paste");
 	tui.press("ctrl+c");
 	assert.equal(await pending, undefined);
 	assert.equal(tui.isOpen, false);

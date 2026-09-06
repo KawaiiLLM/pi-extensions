@@ -13,11 +13,8 @@ import {
 	stateDirectoryMigrationNotice,
 } from "../state/state-directory.js";
 import { throwIfAborted } from "../sync/signals.js";
-import {
-	errorMessage,
-	isSyncDecisionRequiredError,
-	SetupPullRequiresUiError,
-} from "../sync/sync-errors.js";
+import { syncErrorGuidance } from "../sync/sync-error-guidance.js";
+import { isSyncDecisionRequiredError, SetupPullRequiresUiError } from "../sync/sync-errors.js";
 import type { SyncLoaders } from "../sync/sync-loaders.js";
 import { RemoteSelectionMismatchError } from "../sync/sync-policy.js";
 import type { RunRouteResult } from "../ui/cancellable-operation.js";
@@ -73,7 +70,7 @@ export async function executeRecoveryCommand(
 		if (isSyncDecisionRequiredError(error)) {
 			return { kind: "decision-required", decision: error.decision };
 		}
-		ctx.ui.notify(errorMessage(error), "error");
+		ctx.ui.notify(syncErrorGuidance(error), "error");
 		return { kind: "failed" };
 	}
 }
@@ -198,7 +195,7 @@ export async function executeCommand(
 		if (isSyncDecisionRequiredError(error)) {
 			return { kind: "decision-required", decision: error.decision };
 		}
-		ctx.ui.notify(errorMessage(error), "error");
+		ctx.ui.notify(syncErrorGuidance(error), "error");
 		return { kind: "failed" };
 	}
 }

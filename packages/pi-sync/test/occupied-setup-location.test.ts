@@ -3,7 +3,6 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import { test } from "vitest";
-import { createMockContext } from "../../../test/support.js";
 import { loadConfig } from "../src/settings/config.js";
 import { localConfigPath } from "../src/settings/config-file.js";
 import { addSyncSetup } from "../src/settings/settings-management.js";
@@ -12,6 +11,7 @@ import { validateSettingsDocument } from "../src/settings/settings-validation.js
 import { showSyncManager } from "../src/ui/manager-ui.js";
 import { promptAvailableSetupStorage } from "../src/ui/setup/setup-location-ui.js";
 import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
+import { createMockContext } from "./setup-test-context.js";
 
 initTheme("dark", false);
 
@@ -145,7 +145,7 @@ for (const kind of kinds) {
 						? ["", storagePath === "./" ? "" : storagePath]
 						: kind === "WebDAV"
 							? [""]
-							: alias && kind === "S3"
+							: alias && (kind === "S3" || kind === "R2")
 								? ["pi-sync"]
 								: []),
 					kind === "Git" ? "work-branch" : "backups/work",
@@ -156,16 +156,10 @@ for (const kind of kinds) {
 					"Add sync setup",
 					connection,
 					...(kind === "S3" || kind === "R2"
-						? [
-								alias
-									? kind === "R2"
-										? "Use suggested location (recommended)"
-										: "Use existing bucket with suggested path (recommended)"
-									: "Same bucket as “home”",
-							]
+						? [alias ? "Use an existing bucket at ./" : "Same bucket as “home”"]
 						: []),
 					"Minimal settings",
-					...(kind === "Git" ? ["Keep automatic sync off"] : []),
+					"Keep automatic sync off",
 					"Add sync setup",
 					undefined,
 				];

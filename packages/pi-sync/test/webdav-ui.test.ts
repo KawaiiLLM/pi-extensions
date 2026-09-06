@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
-import { createMockContext } from "../../../test/support.js";
 import { loadConfig, loadPartialConfig } from "../src/settings/config.js";
 import { localConfigPath } from "../src/settings/config-file.js";
 import { readLocalConfigObject, updateLocalConfig } from "../src/settings/settings-store.js";
@@ -13,6 +12,7 @@ import {
 	showWebDavSetup,
 } from "../src/ui/setup/webdav-ui.js";
 import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
+import { createMockContext } from "./setup-test-context.js";
 
 test("first WebDAV setup stores masked credentials in the exact version 3 shape", async () => {
 	await withTempHome(async (agentDir) => {
@@ -69,7 +69,7 @@ test("WebDAV connection reuse adds a second setup without exposing credentials",
 		assert.equal(await showAddWebDavStorageProfile(connectionCtx.ctx), true);
 
 		const targetInputs = ["backups/work"];
-		const targetChoices = ["Minimal settings", "Add sync setup"];
+		const targetChoices = ["Minimal settings", "Keep automatic sync off", "Add sync setup"];
 		const targetCtx = createMockContext({
 			hasUI: true,
 			mode: "tui",
@@ -112,10 +112,11 @@ test("WebDAV setup edit persists one complete path and rejects unsafe paths", as
 		assert.equal((await loadConfig("work")).storagePath, "archives/work");
 
 		const before = readFileSync(localConfigPath());
+		const invalidInputs = ["../escape", undefined];
 		const invalid = createMockContext({
 			hasUI: true,
 			mode: "tui",
-			input: async () => "../escape",
+			input: async () => invalidInputs.shift(),
 			select: async () => "Save sync setup",
 		});
 		assert.equal(await showEditWebDavTarget(invalid.ctx, await loadPartialConfig("work")), false);
@@ -129,7 +130,12 @@ test("WebDAV new setups default to root while edits keep the existing nested pat
 		mkdirSync(agentDir, { recursive: true });
 		writeFileSync(localConfigPath(), JSON.stringify(v3WebDavSettings()), { mode: 0o600 });
 		const titles: string[] = [];
-		const choices = ["Minimal settings", "Add sync setup", "Save sync setup"];
+		const choices = [
+			"Minimal settings",
+			"Keep automatic sync off",
+			"Add sync setup",
+			"Save sync setup",
+		];
 		const { ctx } = createMockContext({
 			hasUI: true,
 			mode: "tui",

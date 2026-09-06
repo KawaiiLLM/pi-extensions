@@ -3,6 +3,7 @@ import { encodeKey, posixJoin } from "../../paths.js";
 import { sessionTokenWarnings } from "../../settings/config.js";
 import { decodeSnapshot, encodeSnapshot } from "../../snapshot/snapshot-codec.js";
 import type { Snapshot } from "../../snapshot/snapshot-types.js";
+import { syncErrorGuidance } from "../../sync/sync-error-guidance.js";
 import { portableSnapshotSelection } from "../../sync/sync-policy.js";
 import type { LatestPointer, RemoteObject, ResolvedS3Backend } from "../backend-types.js";
 import {
@@ -190,7 +191,7 @@ export class S3SyncBackend implements SyncBackend {
 
 	async diagnose(signal?: AbortSignal): Promise<BackendDiagnostic[]> {
 		throwIfAborted(signal);
-		return [
+		const diagnostics: BackendDiagnostic[] = [
 			{
 				key: "s3-config",
 				level: "info",
@@ -202,6 +203,39 @@ export class S3SyncBackend implements SyncBackend {
 				message,
 			})),
 		];
+		const deadline = AbortSignal.timeout(10_000);
+		const probeSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+		try {
+			const result = await new S3Client(this.config, probeSignal).diagnoseRead(
+				latestKey(this.config),
+			);
+			throwIfAborted(probeSignal);
+			const messages = {
+				readable:
+					"s3 remote read: HTTP success. Snapshot contents and write access are not tested.",
+				"missing-key":
+					"s3 remote read: no snapshot at this path (NoSuchKey). Write access is not tested; verify the bucket and path before first sync.",
+				"missing-bucket":
+					"s3 remote read: bucket not found (NoSuchBucket). Create the bucket with your provider or edit the setup's bucket name.",
+				"unknown-404":
+					"s3 remote read: HTTP 404; cannot confirm whether the bucket or snapshot is missing. Verify the endpoint, bucket, and path with your provider. Write access is not tested.",
+			};
+			diagnostics.push({
+				key: "s3-read",
+				level: result === "readable" ? "info" : "warning",
+				message: messages[result],
+			});
+		} catch (error) {
+			throwIfAborted(signal);
+			diagnostics.push({
+				key: "s3-read",
+				level: "warning",
+				message: syncErrorGuidance(
+					deadline.aborted ? new Error("S3 diagnostic request timed out.") : error,
+				),
+			});
+		}
+		return diagnostics;
 	}
 
 	private async resolveChecksum(reference: string, signal?: AbortSignal) {

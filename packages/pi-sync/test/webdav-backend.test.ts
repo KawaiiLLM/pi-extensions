@@ -14,6 +14,9 @@ test("WebDAV doctor verifies conditional publication and cleans its probe", asyn
 		assert.equal(backend.capability, "atomic-conditional");
 		assert.ok(diagnostics.some((item) => item.message.includes("atomic-conditional (verified)")));
 		assert.ok(diagnostics.some((item) => item.message.includes("cleanup: ok")));
+		assert.ok(
+			diagnostics.some((item) => /temporary write\/delete probe; repair/u.test(item.message)),
+		);
 		assert.equal(
 			[...server.resources.keys()].some((key) => key.includes(".pi-sync-probes")),
 			false,
@@ -246,6 +249,7 @@ test("WebDAV authentication and permission diagnostics remain actionable", async
 				.join("\n");
 			assert.match(output, setup.expected);
 			assert.match(output, /read-only/);
+			assert.match(output, /credentials and remote permissions/u);
 			assert.doesNotMatch(output, /Basic [A-Za-z0-9+/=]+/);
 		} finally {
 			await server.close();

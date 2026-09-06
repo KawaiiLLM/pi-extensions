@@ -120,13 +120,19 @@ When adding a setup, locally configured destinations are checked before content 
 An occupied destination requires an explicit different path; Git requires a different branch because directories do not isolate publications on one branch.
 This check does not contact the server or discover setups configured only on other machines.
 
-Every setup requires `sync.include` and explicit `sync.automatic`.
+Every setup requires `sync.include` and explicit `sync.automatic`. All initial and additional setup flows ask for automatic sync, with Off first; existing values are not rewritten. When enabled, the current setup syncs at Pi session startup. At shutdown, changes are pushed only when `sessions` is included.
+
+Recommended includes the nine non-session Pi roots listed below; Minimal includes `settings.json` and `AGENTS.md`. The save review lists every selected path and the full backend destination. R2/S3 requires an explicitly entered existing bucket and never creates one. Saving setup or connection settings does not contact remote storage.
+
+Invalid fields retry without discarding earlier answers. Retryable local I/O failures retain the exact draft for another Save. Stale reviews and invalid settings files require reopening or repairing current settings rather than overwriting them. A separately saved connection remains if the surrounding Add setup flow is cancelled.
+
+**Edit storage location…** changes only bucket, branch, or path. Content and automatic sync belong to the current setup's **Settings** screen; editing another setup's coordinates does not make it current.
 `activeSyncSetup` must reference an own-property setup when any setups exist and must be absent when the setup catalog is empty.
 A referenced connection cannot be removed.
-The current setup must be switched before removal.
+The current setup must be switched before removal when other setups exist. Removing the last setup is allowed; local removal never deletes remote history.
 Two setups cannot resolve to the same normalized backend location.
 
-`onSwitch` accepts:
+The global **After switching setup (all setups)** setting persists as `onSwitch` and applies whenever any setup is made current. It accepts:
 
 - `ask-before-pull` — switch, then ask in TUI whether to start a reviewed pull;
 - `pull-after-switch` — require observable UI and start the normal reviewed pull;
@@ -135,10 +141,14 @@ Two setups cannot resolve to the same normalized backend location.
 ### Secret scanning
 
 The global `skipSecretScan` setting accepts a boolean and defaults to `false`, including when omitted from an existing version 3 document.
-Set it through **/sync → Settings → Skip secret scan**; changes are saved immediately and apply to subsequent pushes for every sync setup, including automatic pushes.
+Set it through **/sync → Settings → Skip secret scan (all setups)**; changes are saved immediately and apply to subsequent pushes for every sync setup, including automatic pushes.
 When `true`, pushes skip the local secret scan; other safety checks and confirmations remain unchanged.
 Enable it only after reviewing the destination and selected content because files containing secrets can be uploaded.
 `/sync doctor` still scans and reports possible secrets regardless of this setting.
+
+### Check setup
+
+**More… → Check setup** and `/sync doctor` retain the same route. S3/R2 reads the selected setup's latest pointer with a ten-second deadline and bounded error details; it never writes, deletes, lists buckets, or changes settings. HTTP success does not validate snapshot contents or write access. `NoSuchKey` indicates no snapshot at the path; `NoSuchBucket` indicates a missing bucket; other 404 responses cannot distinguish the two. Authentication and transport failures give credentials/permissions or address/network guidance. Git reads remote snapshots and checks its local cache; write access is not tested. WebDAV retains its isolated conditional-write/cleanup probe and repair of a missing active-snapshot history entry.
 
 ### Included content
 

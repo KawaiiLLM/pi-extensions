@@ -32,6 +32,16 @@ export class S3ObjectAlreadyExistsError extends Error {
 	}
 }
 
+export class S3HttpError extends Error {
+	constructor(
+		message: string,
+		readonly status: number,
+	) {
+		super(message);
+		this.name = "S3HttpError";
+	}
+}
+
 export class S3Client {
 	private config: ResolvedS3Backend;
 	private endpoint: URL;
@@ -50,6 +60,28 @@ export class S3Client {
 		this.requestTimeoutMs = requestTimeoutMs;
 	}
 
+	/** Read-only access probe. A bare 404 cannot distinguish a missing key from a missing bucket. */
+	async diagnoseRead(
+		key: string,
+	): Promise<"readable" | "missing-key" | "missing-bucket" | "unknown-404"> {
+		this.signal?.throwIfAborted();
+		const response = await this.request("GET", key);
+		if (response.ok) {
+			await response.body?.cancel();
+			this.signal?.throwIfAborted();
+			return "readable";
+		}
+		const detail = await this.readErrorText(response);
+		this.signal?.throwIfAborted();
+		if (response.status === 404) {
+			const code = /<Code>\s*([A-Za-z]+)\s*<\/Code>/u.exec(detail)?.[1];
+			if (code === "NoSuchBucket") return "missing-bucket";
+			if (code === "NoSuchKey") return "missing-key";
+			return "unknown-404";
+		}
+		throw new S3HttpError(`S3 remote read failed (HTTP ${response.status}).`, response.status);
+	}
+
 	async getJson<T>(key: string): Promise<RemoteObject<T>> {
 		const maxAttempts = 3;
 		let lastError: unknown;
@@ -57,7 +89,10 @@ export class S3Client {
 			const object = await this.request("GET", key);
 			if (object.status === 404) return { missing: true };
 			if (!object.ok) {
-				throw new Error(`S3 GET failed (${object.status}): ${await this.readErrorText(object)}`);
+				throw new S3HttpError(
+					`S3 GET failed (${object.status}): ${await this.readErrorText(object)}`,
+					object.status,
+				);
 			}
 			const body = await readBoundedText(object, MAX_JSON_RESPONSE_BYTES, "S3 JSON response");
 			// R2 can intermittently return an empty 200 body (read-after-write
@@ -87,7 +122,10 @@ export class S3Client {
 			const object = await this.request("GET", key);
 			if (object.status === 404) return { missing: true };
 			if (!object.ok) {
-				throw new Error(`S3 GET failed (${object.status}): ${await this.readErrorText(object)}`);
+				throw new S3HttpError(
+					`S3 GET failed (${object.status}): ${await this.readErrorText(object)}`,
+					object.status,
+				);
 			}
 			const buffer = await readBoundedBuffer(
 				object,
@@ -130,7 +168,10 @@ export class S3Client {
 			throw new S3ObjectAlreadyExistsError(key);
 		}
 		if (!response.ok) {
-			throw new Error(`S3 PUT failed (${response.status}): ${await this.readErrorText(response)}`);
+			throw new S3HttpError(
+				`S3 PUT failed (${response.status}): ${await this.readErrorText(response)}`,
+				response.status,
+			);
 		}
 	}
 
@@ -173,8 +214,13 @@ export class S3Client {
 			? undefined
 			: this.config.profile.sessionToken;
 		const response = await send(sessionToken);
-		if (!(await this.shouldRetryWithoutSessionToken(response, sessionToken))) return response;
-
+		try {
+			if (!(await this.shouldRetryWithoutSessionToken(response, sessionToken))) return response;
+		} catch (error) {
+			await response.body?.cancel().catch(() => undefined);
+			throw error;
+		}
+		await response.body?.cancel();
 		const retry = await send(undefined);
 		if (retry.ok || retry.status === 404) this.omitSessionTokenAfterRejection = true;
 		return retry;
@@ -246,6 +292,8 @@ async function readBoundedText(response: Response, limit: number, label: string)
 async function readBoundedBuffer(response: Response, limit: number, label: string) {
 	const contentLength = Number(response.headers.get("content-length"));
 	if (Number.isFinite(contentLength) && contentLength > limit) {
+		// Do not await cancellation of a cloned stream before its sibling can be released.
+		void response.body?.cancel().catch(() => undefined);
 		throw new Error(`${label} exceeds the ${limit}-byte limit.`);
 	}
 	if (!response.body) return Buffer.alloc(0);
@@ -258,7 +306,7 @@ async function readBoundedBuffer(response: Response, limit: number, label: strin
 			if (done) break;
 			total += value.byteLength;
 			if (total > limit) {
-				await reader.cancel().catch(() => undefined);
+				void reader.cancel().catch(() => undefined);
 				throw new Error(`${label} exceeds the ${limit}-byte limit.`);
 			}
 			chunks.push(Buffer.from(value));

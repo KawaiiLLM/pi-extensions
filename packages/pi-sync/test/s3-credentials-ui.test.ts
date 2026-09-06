@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
-import { createMockContext } from "../../../test/support.js";
 import { localConfigPath } from "../src/settings/config-file.js";
 import { readLocalConfigObject } from "../src/settings/settings-store.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
+import { createMockContext } from "./setup-test-context.js";
 
 const credentials = {
 	accessKeyId: "temporary-access-id",

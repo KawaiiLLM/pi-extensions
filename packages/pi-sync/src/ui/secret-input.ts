@@ -29,7 +29,9 @@ export async function promptSecret(
 			const cancelKey = keybindingText(keybindings, "tui.select.cancel", "esc", ["ctrl+c"]);
 			const applyTheme = () => {
 				heading.setText(theme.fg("accent", theme.bold(title)));
-				hint.setText(theme.fg("dim", `${submitKey} save • ${cancelKey} cancel • Input is hidden`));
+				hint.setText(
+					theme.fg("dim", `${submitKey} continue • ${cancelKey} cancel • Input is hidden`),
+				);
 			};
 			applyTheme();
 			const input = new MaskedInput(keybindings);
@@ -60,10 +62,22 @@ export async function promptSecret(
 					hint.invalidate();
 				},
 				handleInput(data: string) {
-					if (matchesKey(data, Key.ctrl("c")) || keybindings.matches(data, "tui.select.cancel")) {
+					if (matchesKey(data, Key.ctrl("c"))) {
 						complete(undefined);
-					} else if (keybindings.matches(data, "tui.input.submit")) complete(input.getValue());
-					else input.handleInput(data);
+					} else if (input.isPasting || data.includes("\u001b[200~")) {
+						input.handleInput(data);
+					} else if (keybindings.matches(data, "tui.select.cancel")) {
+						complete(undefined);
+					} else if (keybindings.matches(data, "tui.input.submit")) {
+						if (options.required !== false && input.getValue().length === 0) {
+							ctx.ui.notify(`${title} is required. Enter a value, or cancel.`, "warning");
+						} else if (hasControlCharacter(input.getValue())) {
+							ctx.ui.notify(
+								`${title} contains control characters. Remove them or re-enter the value, then continue.`,
+								"warning",
+							);
+						} else complete(input.getValue());
+					} else input.handleInput(data);
 					tui.requestRender();
 				},
 				dispose() {
@@ -91,6 +105,10 @@ class MaskedInput implements Focusable {
 	private pasting = false;
 
 	constructor(private readonly keybindings: KeybindingsManager) {}
+
+	get isPasting() {
+		return this.pasting;
+	}
 
 	getValue() {
 		return this.value.join("");

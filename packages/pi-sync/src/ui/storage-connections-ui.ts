@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { defineMenu, runMenu } from "@narumitw/pi-tui-kit";
 import {
@@ -6,14 +7,20 @@ import {
 	updateStorageConnection,
 } from "../settings/settings-management.js";
 import { readLocalConfigObject } from "../settings/settings-store.js";
-import { isCloudflareR2Endpoint, ownRecord } from "../settings/settings-validation.js";
-import { errorMessage } from "../sync/sync-errors.js";
+import {
+	isCloudflareR2Endpoint,
+	normalizeS3Endpoint,
+	ownRecord,
+} from "../settings/settings-validation.js";
+import { syncErrorGuidance } from "../sync/sync-error-guidance.js";
 import { showAddGitStorageProfile, showEditGitStorageProfile } from "./setup/git-ui.js";
 import {
 	applyS3CredentialUpdate,
 	chooseS3Credentials,
 	chooseS3CredentialUpdate,
 } from "./setup/s3-credentials-ui.js";
+import { promptResourceName } from "./setup/setup-prompts.js";
+import { saveReviewedDraft } from "./setup/setup-review.js";
 import { requiredInput, requiredValueInput } from "./setup/text-input.js";
 import { showAddWebDavStorageProfile, showEditWebDavStorageProfile } from "./setup/webdav-ui.js";
 import { safeTerminalText } from "./terminal-text.js";
@@ -38,7 +45,7 @@ export async function showStorageConnections(ctx: ExtensionCommandContext, signa
 					kind: "actions",
 					title: "Storage connections",
 					lines: state.version3
-						? []
+						? ["Server addresses and sign-in details, reusable across sync setups."]
 						: ["Create version 3 settings before managing storage connections."],
 					items: state.version3
 						? [
@@ -49,6 +56,7 @@ export async function showStorageConnections(ctx: ExtensionCommandContext, signa
 									return {
 										id,
 										label: safeTerminalText(name),
+										description: connectionSummary(ownRecord(state.profiles[name]) ?? {}),
 										action: "select" as const,
 									};
 								}),
@@ -87,10 +95,7 @@ export async function showStorageConnections(ctx: ExtensionCommandContext, signa
 					await showAddStorageConnection(ctx, signal);
 				} catch (error) {
 					if (!signal?.aborted) {
-						ctx.ui.notify(
-							`Storage connection was not added: ${safeTerminalText(errorMessage(error))} Retry from Add storage connection.`,
-							"error",
-						);
+						ctx.ui.notify(`Storage connection was not added: ${syncErrorGuidance(error)}`, "error");
 					}
 				}
 				return { kind: "stay" };
@@ -168,7 +173,9 @@ async function loadStorageMenuState(selectedName: string | undefined, signal?: A
 				`Credentials: ${credentialSource(profile)}`,
 				`Used by: ${usedBy.length > 0 ? usedBy.map(safeTerminalText).join(", ") : "No sync setups"}`,
 				...(usedBy.length > 0
-					? ["Remove unavailable: edit or remove the listed sync setups first."]
+					? [
+							"Remove unavailable: remove the listed sync setups first. Switch away from a current setup before removing it if other setups remain.",
+						]
 					: []),
 			],
 		},
@@ -183,7 +190,7 @@ function notifyConnectionError(
 ) {
 	if (signal?.aborted) return;
 	ctx.ui.notify(
-		`Storage connection “${safeTerminalText(name)}” was not changed: ${safeTerminalText(errorMessage(error))} Reopen it and retry.`,
+		`Storage connection “${safeTerminalText(name)}” was not changed: ${syncErrorGuidance(error)}`,
 		"error",
 	);
 }
@@ -221,6 +228,7 @@ async function editStorageConnection(
 		"Endpoint",
 		String(profile.endpoint ?? "https://s3.example.com"),
 		signal,
+		normalizeS3Endpoint,
 	);
 	if (!endpoint || signal?.aborted) return;
 	const region = await requiredInput(
@@ -237,41 +245,41 @@ async function editStorageConnection(
 		signal,
 	);
 	if (!credentials || signal?.aborted) return;
-	const save = await ctx.ui.select(
+	const saved = await saveReviewedDraft(
+		ctx,
+		"Review storage connection",
 		[
-			"Review storage connection",
-			"",
 			`Storage connection: ${safeTerminalText(name)}`,
 			`Endpoint: ${safeTerminalText(String(profile.endpoint ?? "missing"))} → ${safeTerminalText(endpoint)}`,
 			`Region: ${safeTerminalText(String(profile.region ?? "auto"))} → ${safeTerminalText(region)}`,
 			`Credentials: ${safeTerminalText(credentials.summary)}`,
 			`Affected sync setups: ${usedBy.length > 0 ? usedBy.map(safeTerminalText).join(", ") : "None"}`,
 			"Saving changes future storage access for every affected setup; it does not move remote data.",
-		].join("\n"),
-		["Save storage connection", "Cancel"],
-		{ signal },
-	);
-	if (save !== "Save storage connection" || signal?.aborted) return;
-	await updateStorageConnection(
-		name,
-		(current) => {
-			if (current.type !== "s3") {
-				throw new Error("Storage connection type changed; reopen it.");
-			}
-			return {
-				...current,
-				endpoint,
-				region,
-				credentials: applyS3CredentialUpdate(
-					current.credentials,
-					credentials,
-				) as typeof current.credentials,
-			};
-		},
-		usedBy,
+		],
+		"Save storage connection",
+		(saveSignal) =>
+			updateStorageConnection(
+				name,
+				(current) => {
+					if (current.type !== "s3" || !isDeepStrictEqual(current, profile)) {
+						throw new Error("Storage connection changed while it was open; reopen it.");
+					}
+					return {
+						...current,
+						endpoint,
+						region,
+						credentials: applyS3CredentialUpdate(
+							current.credentials,
+							credentials,
+						) as typeof current.credentials,
+					};
+				},
+				usedBy,
+				saveSignal,
+			),
 		signal,
 	);
-	if (signal?.aborted) return;
+	if (!saved || signal?.aborted) return;
 	ctx.ui.notify(`Saved storage connection “${safeTerminalText(name)}”.`, "info");
 }
 
@@ -291,9 +299,9 @@ export async function showAddStorageConnection(ctx: ExtensionCommandContext, sig
 	if (signal?.aborted || !preset || preset === "Cancel") return false;
 	if (preset === "WebDAV") return showAddWebDavStorageProfile(ctx, signal);
 	if (preset === "Git") return showAddGitStorageProfile(ctx, signal);
-	const name = await requiredInput(
+	const name = await promptResourceName(
 		ctx,
-		"Name this storage connection\n\nA local label for a reusable connection; this does not create a bucket.",
+		"storage connection",
 		preset === "Cloudflare R2" ? "r2" : "s3",
 		signal,
 	);
@@ -305,6 +313,7 @@ export async function showAddStorageConnection(ctx: ExtensionCommandContext, sig
 			? "https://<account-id>.r2.cloudflarestorage.com"
 			: "https://s3.example.com",
 		signal,
+		normalizeS3Endpoint,
 	);
 	if (!endpoint || signal?.aborted) return false;
 	const region =
@@ -319,34 +328,35 @@ export async function showAddStorageConnection(ctx: ExtensionCommandContext, sig
 	if (!region || signal?.aborted) return false;
 	const credentials = await chooseS3Credentials(ctx, signal);
 	if (!credentials || signal?.aborted) return false;
-	const save = await ctx.ui.select(
+	const saved = await saveReviewedDraft(
+		ctx,
+		"Review storage connection",
 		[
-			"Review storage connection",
-			"",
 			`Name: ${safeTerminalText(name)}`,
 			`Type: ${preset}`,
 			`Endpoint: ${safeTerminalText(endpoint)}`,
 			`Region: ${safeTerminalText(region)}`,
 			`Credentials: ${safeTerminalText(credentials.summary)}`,
 			"Adding a connection does not contact remote storage or start syncing.",
-		].join("\n"),
-		["Add storage connection", "Cancel"],
-		{ signal },
-	);
-	if (save !== "Add storage connection" || signal?.aborted) return false;
-	await addStorageConnection(
-		name,
-		{
-			type: "s3",
-			endpoint,
-			region,
-			credentials: {
-				accessKeyId: credentials.profileFields.accessKeyId ?? "",
-				secretAccessKey: credentials.profileFields.secretAccessKey ?? "",
-			},
-		},
+		],
+		"Add storage connection",
+		(saveSignal) =>
+			addStorageConnection(
+				name,
+				{
+					type: "s3",
+					endpoint,
+					region,
+					credentials: {
+						accessKeyId: credentials.profileFields.accessKeyId ?? "",
+						secretAccessKey: credentials.profileFields.secretAccessKey ?? "",
+					},
+				},
+				saveSignal,
+			),
 		signal,
 	);
+	if (!saved) return false;
 	if (signal?.aborted) return true;
 	ctx.ui.notify(`Added storage connection “${safeTerminalText(name)}”.`, "info");
 	return true;
@@ -357,6 +367,10 @@ function referencingSetups(raw: Record<string, unknown> | undefined, connection:
 		.filter(([, value]) => ownRecord(ownRecord(value)?.storage)?.connection === connection)
 		.map(([name]) => name)
 		.sort((left, right) => left.localeCompare(right));
+}
+
+export function connectionSummary(profile: Record<string, unknown>) {
+	return `${connectionType(profile)} · ${connectionEndpoint(profile)}`;
 }
 
 function connectionType(profile: Record<string, unknown>) {
@@ -382,7 +396,8 @@ function connectionEndpoint(profile: Record<string, unknown>) {
 	if (typeof value !== "string" || value.length === 0) return "Missing";
 	if (profile.type === "git") return safeTerminalText(value);
 	try {
-		return safeTerminalText(new URL(value).host);
+		const url = new URL(value);
+		return safeTerminalText(`${url.origin}${url.pathname}`);
 	} catch {
 		return "Invalid";
 	}

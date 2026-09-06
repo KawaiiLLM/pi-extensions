@@ -36,13 +36,16 @@ test("S3 factory exposes a stable secret-free identity, weak capability, and dia
 	assert.equal(backend.capability, "read-check-write-verify");
 	assert.doesNotMatch(backend.identity, /access-key|secret-key|different/);
 	assert.match(backend.destination, /example\.r2\.cloudflarestorage\.com/);
-	assert.deepEqual(await backend.diagnose(), [
-		{
+	await new S3Harness(snapshot([])).run(async () => {
+		const diagnostics = await backend.diagnose();
+		assert.deepEqual(diagnostics[0], {
 			key: "s3-config",
 			level: "info",
 			message: "s3 config: ok (pi-sync-test/pi-sync)",
-		},
-	]);
+		});
+		assert.equal(diagnostics[1]?.key, "s3-read");
+		assert.match(diagnostics[1]?.message ?? "", /HTTP success/u);
+	});
 	assert.equal(
 		backend.identity,
 		createSyncBackend({

@@ -9,11 +9,11 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { test } from "vitest";
-import { createMockContext } from "../../../test/support.js";
 import { readLocalConfigObject } from "../src/settings/settings-store.js";
 import { promptInitialSetupName } from "../src/ui/setup/setup-name-ui.js";
 import { showSetupWizard } from "../src/ui/setup/setup-wizard.js";
 import { withTempHome } from "./helpers.js";
+import { createMockContext } from "./setup-test-context.js";
 
 initTheme("dark", false);
 

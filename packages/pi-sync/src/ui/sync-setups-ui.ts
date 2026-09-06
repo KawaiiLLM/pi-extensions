@@ -3,7 +3,7 @@ import { defineMenu, runMenu } from "@narumitw/pi-tui-kit";
 import { loadConfig } from "../settings/config.js";
 import { readLocalConfigObject } from "../settings/settings-store.js";
 import { ownRecord } from "../settings/settings-validation.js";
-import { errorMessage } from "../sync/sync-errors.js";
+import { syncErrorGuidance } from "../sync/sync-error-guidance.js";
 import { syncIncludeSelection } from "../sync/sync-policy.js";
 import { safeTerminalText } from "./terminal-text.js";
 
@@ -71,6 +71,7 @@ export async function showSyncSetups(
 				return {
 					kind: "actions",
 					title: "Sync setups",
+					lines: ["What to sync, where to store it, and when to sync."],
 					items: [
 						{ id: "add", label: "Add sync setup", action: "add" },
 						...names.map((name, index) => {
@@ -79,6 +80,7 @@ export async function showSyncSetups(
 							return {
 								id,
 								label: `${safeTerminalText(name)}${name === state.active ? " (current)" : ""}`,
+								description: setupSummary(state.setups[name]),
 								action: "select" as const,
 							};
 						}),
@@ -105,7 +107,7 @@ export async function showSyncSetups(
 											action: "make-current" as const,
 										},
 									]),
-							{ id: "edit", label: "Edit sync setup…", action: "edit" },
+							{ id: "edit", label: "Edit storage location…", action: "edit" },
 							...(state.selected.removeUnavailable
 								? []
 								: [
@@ -127,10 +129,7 @@ export async function showSyncSetups(
 					await actions.add(signal);
 				} catch (error) {
 					if (!signal?.aborted) {
-						ctx.ui.notify(
-							`Sync setup was not added: ${menuErrorMessage(error)} Retry from Add sync setup.`,
-							"error",
-						);
+						ctx.ui.notify(`Sync setup was not added: ${menuErrorMessage(error)}`, "error");
 					}
 				}
 				return { kind: "stay" };
@@ -209,6 +208,9 @@ async function loadSetupMenuState(
 			`Included content: ${selection.builtIns.length} built-in groups · ${selection.custom.length} extra paths`,
 			`Sessions: ${selection.sessions ? "On — privacy-sensitive" : "Off"}`,
 			`Automatic sync: ${config.automatic ? "On" : "Off"}`,
+			isCurrent
+				? "Edit included content and automatic sync in /sync → Settings."
+				: "To edit included content or automatic sync, make this setup current, then open /sync → Settings.",
 		];
 	} catch (error) {
 		valid = false;
@@ -235,13 +237,21 @@ function notifySetupChangeError(
 ) {
 	if (signal?.aborted) return;
 	ctx.ui.notify(
-		`Sync setup “${safeTerminalText(name)}” was not changed: ${menuErrorMessage(error)} Reopen it and retry.`,
+		`Sync setup “${safeTerminalText(name)}” was not changed: ${menuErrorMessage(error)}`,
 		"error",
 	);
 }
 
 function menuErrorMessage(error: unknown) {
-	return safeTerminalText(errorMessage(error));
+	return syncErrorGuidance(error);
+}
+
+function setupSummary(value: unknown) {
+	const storage = ownRecord(ownRecord(value)?.storage);
+	if (!storage || typeof storage.connection !== "string") return "Invalid storage reference";
+	return safeTerminalText(
+		`${storage.connection} · ${storage.bucket ?? storage.branch ?? "WebDAV"} · ${storage.path ?? "missing path"}`,
+	);
 }
 
 function storageEndpoint(config: Awaited<ReturnType<typeof loadConfig>>) {

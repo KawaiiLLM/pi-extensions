@@ -4,7 +4,6 @@ import path from "node:path";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
-import { createMockContext } from "../../../test/support.js";
 import { WebDavClient } from "../src/backends/webdav/webdav-client.js";
 import { loadConfig, loadPartialConfig } from "../src/settings/config.js";
 import { localConfigPath } from "../src/settings/config-file.js";
@@ -17,6 +16,7 @@ import {
 	showWebDavSetup,
 } from "../src/ui/setup/webdav-ui.js";
 import { v3WebDavSettings, withTempHome } from "./helpers.js";
+import { createMockContext } from "./setup-test-context.js";
 
 initTheme("dark", false);
 
@@ -115,7 +115,7 @@ test.each(["first", "add", "edit"])(
 test("WebDAV additional setup accepts a bracket path and cancellation preserves settings", async () => {
 	await withTempHome(async () => {
 		seed(v3WebDavSettings());
-		const choices = ["Minimal settings", "Add sync setup"];
+		const choices = ["Minimal settings", "Keep automatic sync off", "Add sync setup"];
 		const { ctx } = createMockContext({
 			hasUI: true,
 			mode: "tui",
