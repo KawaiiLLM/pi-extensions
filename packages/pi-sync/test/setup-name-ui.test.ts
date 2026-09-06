@@ -161,9 +161,12 @@ const invalidGitNames = [
 	"work/",
 ];
 
+const s3Presets = ["Cloudflare R2", "Other S3-compatible storage"];
+const noncanonicalS3Names = ["work/", "work///", "team/work/", "work /", "/", " work/ "];
 const invalidCases = [
 	...presets.flatMap((preset) => invalidCommonNames.map((name) => ({ preset, name }))),
 	...invalidGitNames.map((name) => ({ preset: "Git", name })),
+	...s3Presets.flatMap((preset) => noncanonicalS3Names.map((name) => ({ preset, name }))),
 ];
 
 test.each(invalidCases)(
@@ -209,11 +212,12 @@ const validCases = [
 	...presets
 		.filter((preset) => preset !== "Git")
 		.flatMap((preset) =>
-			["work profile", ".git", "work.lock", "work..profile", "work/"].map((name) => ({
+			["work profile", ".git", "work.lock", "work..profile", "work%2F"].map((name) => ({
 				preset,
 				name,
 			})),
 		),
+	...["work/", "work///", "team/work/"].map((name) => ({ preset: "WebDAV", name })),
 ];
 
 test.each(validCases)("$preset accepts backend-valid name $name", async ({ preset, name }) => {
@@ -235,9 +239,16 @@ test.each(validCases)("$preset accepts backend-valid name $name", async ({ prese
 	});
 });
 
-test.each([false, true])(
-	"name correction cancellation (abort=%s) never advances setup",
-	async (abort) => {
+test.each(
+	[
+		{ preset: "Git", name: "work profile" },
+		{ preset: "WebDAV", name: ".." },
+		{ preset: "Cloudflare R2", name: "work/" },
+		{ preset: "Other S3-compatible storage", name: "work///" },
+	].flatMap((entry) => [false, true].map((abort) => ({ ...entry, abort }))),
+)(
+	"$preset name correction cancellation (abort=$abort) never advances setup",
+	async ({ preset, name, abort }) => {
 		await withTempHome(async () => {
 			const controller = new AbortController();
 			const titles: string[] = [];
@@ -245,11 +256,11 @@ test.each([false, true])(
 			const { ctx, notifications } = createMockContext({
 				hasUI: true,
 				mode: "tui",
-				select: async () => "Git",
+				select: async () => preset,
 				input: async (title: string, _placeholder?: string, options?: { signal?: AbortSignal }) => {
 					titles.push(title);
 					signals.push(options?.signal);
-					if (titles.length === 1) return "work profile";
+					if (titles.length === 1) return name;
 					if (abort) {
 						controller.abort(new DOMException("Session shut down", "AbortError"));
 						return "default";

@@ -106,6 +106,62 @@ test.each([
 	});
 });
 
+test.each(["Cloudflare R2", "Other S3-compatible storage"])(
+	"%s setup corrects a trailing-slash name and uses the exact reviewed path",
+	async (preset) => {
+		await withTempHome(async () => {
+			const r2 = preset === "Cloudflare R2";
+			const choices = [
+				preset,
+				r2
+					? "Use suggested location (recommended)"
+					: "Use existing bucket with suggested path (recommended)",
+				"Store credentials privately",
+				"Minimal settings",
+				"Keep automatic sync off",
+				"Keep sessions off (recommended)",
+				"Save sync setup",
+			];
+			const inputs = [
+				r2 ? "https://account.r2.cloudflarestorage.com" : "https://s3.example.com",
+				...(r2 ? [] : ["us-east-1", "existing-bucket"]),
+				"access-key",
+			];
+			const titles: string[] = [];
+			let nameCalls = 0;
+			let review = "";
+			const { ctx, notifications } = createMockContext({
+				hasUI: true,
+				mode: "tui",
+				select: async (title: string) => {
+					if (title.startsWith("Review sync setup")) review = title;
+					return choices.shift();
+				},
+				input: async (title: string) => {
+					titles.push(title);
+					if (title.startsWith("Sync setup name")) return nameCalls++ === 0 ? "work/" : "work";
+					return inputs.shift();
+				},
+				custom: secretInput("secret-key"),
+			});
+			assert.equal(await showSetupWizard(ctx), true);
+			const reviewedPath = review.split("\n").find((line) => line.startsWith("Storage location: "));
+			assert.equal(reviewedPath, "Storage location: pi-sync/work");
+			assert.match(titles[0], /^Sync setup name/u);
+			assert.equal(titles[1], titles[0]);
+			assert.equal(notifications.filter((item) => item.level === "warning").length, 1);
+			const saved = await readLocalConfigObject();
+			assert.equal(saved?.activeSyncSetup, "work");
+			assert.equal(saved?.syncSetups.work.storage.path, "pi-sync/work");
+			const config = await loadConfig();
+			assert.equal(config.storagePath, "pi-sync/work");
+			assert.equal(config.backend.type, "s3");
+			if (config.backend.type !== "s3") return;
+			assert.equal(config.backend.destination.prefix, "pi-sync/work");
+		});
+	},
+);
+
 test("generic S3 setup reviews one complete custom storage path", async () => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });

@@ -19,12 +19,15 @@ export async function promptInitialSetupName(
 			validateConfigName(name, "sync setup");
 			// Validate the same suggestions the backend prompts will offer, without changing the name.
 			const suggestedPath = `pi-sync/${name}`;
-			normalizeStoragePath(suggestedPath);
+			const normalizedPath = normalizeStoragePath(suggestedPath);
 			if (preset === "Git") {
 				normalizeGitBranch(suggestedPath);
 				normalizeGitDirectory(suggestedPath);
 			} else if (preset === "WebDAV") {
 				normalizeWebDavPath(suggestedPath);
+			} else if (normalizedPath !== suggestedPath) {
+				// S3 reviews the raw suggestion; WebDAV normalizes its path before review.
+				throw new Error("S3 setup names must not end with a slash.");
 			}
 			return name;
 		} catch (error) {
