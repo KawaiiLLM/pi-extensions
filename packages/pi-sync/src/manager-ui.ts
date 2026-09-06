@@ -38,6 +38,7 @@ import {
 	updateSyncSetup,
 } from "./settings-management.js";
 import { showSyncSettings } from "./settings-ui.js";
+import { promptInitialSetupName } from "./setup-name-ui.js";
 import { useSyncSetup } from "./setup-switch.js";
 import { showAddStorageConnection, showStorageConnections } from "./storage-connections-ui.js";
 import { DEFAULT_SYNC_INCLUDE, syncIncludeSelection } from "./sync-policy.js";
@@ -355,18 +356,7 @@ export async function showSetupWizard(ctx: ExtensionCommandContext, signal?: Abo
 		{ signal },
 	);
 	if (signal?.aborted || !preset || preset === "Cancel") return false;
-	const targetName = await requiredInput(
-		ctx,
-		[
-			"Name this sync setup",
-			"",
-			"Examples: home, work, personal. Leave blank to use default.",
-			"Used in suggested storage paths and Git branches.",
-			"Sync content and automatic sync are chosen separately.",
-		].join("\n"),
-		"default",
-		signal,
-	);
+	const targetName = await promptInitialSetupName(ctx, preset, signal);
 	if (!targetName) return false;
 	if (preset === "WebDAV") {
 		const saved = await showWebDavSetup(ctx, targetName, signal);
