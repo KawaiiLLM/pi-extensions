@@ -31,6 +31,106 @@ const credential = (suffix: string, extra: Record<string, unknown> = {}) => ({
 	...extra,
 });
 
+test("default saves preserve unknown settings fields and credential metadata", async () => {
+	const store = new AccountStore(new InMemoryAccountStorageBackend());
+	await store.writeRawForTest(
+		JSON.stringify({
+			version: 1,
+			future: { enabled: true },
+			providers: {
+				anthropic: {
+					future: ["keep"],
+					accounts: { work: credential("work", { future: "metadata" }) },
+				},
+			},
+		}),
+	);
+	await store.updateProvider("anthropic", (state) => ({ ...state, active: "work" }));
+	const data = await store.readAsync();
+	assert.deepEqual(data.future, { enabled: true });
+	assert.deepEqual(data.providers.anthropic?.future, ["keep"]);
+	assert.equal(data.providers.anthropic?.accounts.work?.future, "metadata");
+	await store.updateProvider("anthropic", (state) => ({ ...state, active: undefined }));
+	assert.equal(Object.hasOwn((await store.readAsync()).providers.anthropic ?? {}, "active"), false);
+});
+
+test("account reads follow queued default writes and recover after a failed write", async () => {
+	const store = new AccountStore(new InMemoryAccountStorageBackend());
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const first = store.updateProviderAsync("anthropic", async () => {
+		await gate;
+		return { active: "first", accounts: {} };
+	});
+	const second = store.updateProvider("anthropic", (state) => ({ ...state, active: "second" }));
+	const read = store.readAsync();
+	release();
+	await Promise.all([first, second]);
+	assert.equal((await read).providers.anthropic?.active, "second");
+	await assert.rejects(
+		store.updateProvider("anthropic", () => {
+			throw new Error("write failed");
+		}),
+		/write failed/,
+	);
+	assert.equal((await store.readProviderAsync("anthropic")).active, "second");
+	await store.updateProvider("anthropic", (state) => ({ ...state, active: undefined }));
+	assert.equal((await store.readProviderAsync("anthropic")).active, undefined);
+});
+
+test("default saves reject invalid existing documents without replacing them", async () => {
+	for (const raw of [
+		"",
+		"  ",
+		"{",
+		"[]",
+		'{"version":1,"providers":{"anthropic":{"active":42,"accounts":{}}}}',
+	]) {
+		const backend = new InMemoryAccountStorageBackend();
+		const store = new AccountStore(backend);
+		await store.writeRawForTest(raw);
+		await assert.rejects(
+			store.updateProvider("anthropic", (state) => ({ ...state, active: "work" })),
+		);
+		assert.equal(
+			backend.read((value) => value),
+			raw,
+		);
+	}
+});
+
+test("default publication failure retains private settings and permits retry", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "pi-accounts-default-failure-"));
+	const file = join(dir, ACCOUNTS_FILE);
+	try {
+		const backend = new FileAccountStorageBackend(file);
+		const store = new AccountStore(backend);
+		await store.updateProvider("anthropic", () => ({
+			active: "work",
+			accounts: { work: credential("work") },
+		}));
+		const before = await readFile(file, "utf8");
+		const writer = backend as unknown as { writePrivate(contents: string): void };
+		const publish = writer.writePrivate.bind(backend);
+		writer.writePrivate = () => {
+			throw new Error("publication failed");
+		};
+		await assert.rejects(
+			store.updateProvider("anthropic", (state) => ({ ...state, active: undefined })),
+			/publication failed/,
+		);
+		assert.equal(await readFile(file, "utf8"), before);
+		assert.equal((await lstat(file)).mode & 0o777, 0o600);
+		writer.writePrivate = publish;
+		await store.updateProvider("anthropic", (state) => ({ ...state, active: undefined }));
+		assert.equal((await store.readProviderAsync("anthropic")).active, undefined);
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
+});
+
 test("provider-scoped storage preserves independent active accounts and OAuth metadata", async () => {
 	const store = new AccountStore(new InMemoryAccountStorageBackend());
 	await store.write({

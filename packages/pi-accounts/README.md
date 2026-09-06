@@ -13,6 +13,7 @@ Each Pi session keeps its own selection for every provider, and choosing `defaul
 
 - Manages named OpenAI Codex, Anthropic Claude Pro/Max, GitHub Copilot, Kimi For Coding, OpenRouter, Radius, and xAI OAuth accounts through `/accounts`.
 - Selects an account—or Pi's default login—independently for each provider and Pi session.
+- Saves a default account for each provider to use in new sessions without changing existing sessions.
 - Restores session selections after resume or reload while allowing concurrent sessions to use different accounts.
 - Applies provider-specific credentials, endpoints, headers, and model availability through Pi's built-in providers.
 - Refreshes rotating credentials and verifies the effective authentication before reporting success.
@@ -55,7 +56,8 @@ The package declares `dist/index.ts`, so an unbuilt local checkout must be built
 ## 🚀 Quick start
 
 Run `/accounts` in TUI or RPC mode.
-Use the manager to log in, switch accounts, restore a provider's default Pi login, or remove an account.
+Log in to save a named account, then choose **Set default account → provider → account** to use it when starting a new Pi session.
+Use **Switch … account** to change only the current session.
 
 ## 🔌 Supported providers
 
@@ -71,7 +73,7 @@ Use the manager to log in, switch accounts, restore a provider's default Pi logi
 
 ## 💬 Commands
 
-Run `/accounts` to log in, switch provider accounts for the current Pi session, or remove saved accounts in TUI or RPC mode.
+Run `/accounts` to log in, switch provider accounts for the current Pi session, set defaults for new sessions, or remove saved accounts in TUI or RPC mode.
 Arguments are ignored for compatibility; print and JSON modes provide no account-manager output.
 Login uses Pi's native OAuth flow, including device codes and cancellation, with equivalent RPC dialogs.
 
@@ -79,6 +81,26 @@ Login uses Pi's native OAuth flow, including device codes and cancellation, with
 Switching affects account identity for the chosen provider, not the model or other sessions' selections.
 Replacing an existing provider/account name or removing an account requires confirmation.
 Removal returns the current session's affected selection to `default`, but other sessions using the removed shared credential fail closed until they choose another account or `default`; see [Security and privacy](#-security-and-privacy).
+
+## ⚙️ Settings
+
+Open `/accounts` → **Set default account**, choose a provider, then select a saved account or **Pi built-in login**.
+The picker shows the saved default and saves your selection immediately; leaving it before selecting changes nothing.
+
+Defaults are user-wide settings in `<getAgentDir()>/pi-accounts.json` (normally `~/.pi/agent/pi-accounts.json`); project overrides are not supported.
+The existing `providers.<provider-id>.active` field stores the saved account name, so previous values remain compatible without migration.
+An absent or `null` value means Pi's built-in login; named values must match a saved account under that provider.
+The menu clears `active` when you choose **Pi built-in login** or remove the configured default account.
+
+New sessions, including `/new`, forks, and clones, snapshot these defaults.
+A session's saved selection takes precedence on restart, resume, and `/reload`; changing a default never switches that session or other existing sessions.
+Login and **Switch … account** still change only the current session, not the startup default.
+Sessions predating session-local selection support snapshot the current default once because their historical choice cannot be inferred.
+If a manually configured default names a missing account, affected sessions fail closed until you choose an available account or Pi's built-in login.
+
+Saves preserve unknown settings fields and use the credential store's cross-process lock and private atomic replacement.
+Within one store, asynchronous reads follow queued writes; failed writes leave the queue usable.
+Malformed settings block saves instead of being replaced, and failed saves do not change the session's authentication.
 
 ## 🔒 Security and privacy
 
@@ -134,11 +156,7 @@ The canonical file is:
 ```
 
 When `PI_CODING_AGENT_DIR` is set, the file is stored at `$PI_CODING_AGENT_DIR/pi-accounts.json` instead.
-Its versioned structure keeps shared credential maps and a compatibility default under separate provider IDs.
-The legacy provider-level `active` value seeds a session that has no owned selection entry, but login, switch, and `default` actions no longer change it.
-A resumed session created before session-local selection support snapshots the current compatibility default once because its historical account choice cannot be inferred.
-Every new session snapshots that compatibility default; forked and cloned sessions do not inherit copied parent selections because their new IDs do not own those entries.
-Removing the credential named by the compatibility default clears that default so new sessions are not seeded with a missing account.
+Its versioned structure keeps shared credential maps and startup defaults under separate provider IDs; see [Settings](#-settings) for editing and session precedence.
 Credential values are private and must not be committed.
 When neither canonical nor legacy storage exists, reads return an empty store without creating a directory or file.
 The first account change creates the private canonical file.
@@ -177,7 +195,7 @@ It is excluded from active workspace checks, version bumps, and publishing.
 - It does not rotate accounts automatically, evade quotas, or report usage.
 - It does not support arbitrary custom providers.
 - Live OAuth login and model requests depend on provider service availability and account entitlement.
-- Sessions created before this behavior cannot recover a historical per-session choice and therefore use the shared compatibility default for their first snapshot.
+- Sessions created before session-local selection support cannot recover a historical per-session choice; see [Settings](#-settings).
 
 ## 🗂️ Package layout
 

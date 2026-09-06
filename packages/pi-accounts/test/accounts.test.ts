@@ -553,7 +553,7 @@ test("accounts command ignores arguments but requires interactive UI", async () 
 	assert.equal(notifications.at(-1)?.level, "error");
 });
 
-test("accounts empty state offers only login and ignores command arguments", async () => {
+test("accounts empty state offers login and defaults and ignores command arguments", async () => {
 	const store = new AccountStore(new InMemoryAccountStorageBackend());
 	const mock = createMockPi();
 	accountsExtension(mock.pi, {
@@ -573,7 +573,7 @@ test("accounts empty state offers only login and ignores command arguments", asy
 	await mock.commands.get("accounts")?.handler("anything ignored", ctx);
 
 	assert.match(selectCalls[0]?.title ?? "", /No saved accounts yet/);
-	assert.deepEqual(selectCalls[0]?.options, ["Login new account"]);
+	assert.deepEqual(selectCalls[0]?.options, ["Login new account", "Set default account"]);
 });
 
 test("accounts menu summarizes all supported providers and prioritizes current provider switch", async () => {
@@ -622,6 +622,7 @@ test("accounts menu summarizes all supported providers and prioritizes current p
 		"Login new account",
 		"Remove account",
 		"Switch another provider’s account",
+		"Set default account",
 	]);
 });
 
@@ -652,6 +653,7 @@ test("accounts menu prioritizes login when the current provider has no saved acc
 		"Login new account",
 		"Switch another provider’s account",
 		"Remove account",
+		"Set default account",
 	]);
 });
 
@@ -689,6 +691,7 @@ test("accounts recovery routes to the invalid provider without dead current-prov
 	assert.deepEqual(selectCalls[0]?.options, [
 		"Login new account",
 		"Switch another provider’s account",
+		"Set default account",
 	]);
 });
 
@@ -722,7 +725,131 @@ test("accounts menu uses generic provider switch for unsupported current models"
 		"Login new account",
 		"Switch provider account",
 		"Remove account",
+		"Set default account",
 	]);
+});
+
+test("default account menu seeds new sessions but leaves current and resumed selections unchanged", async () => {
+	const store = new AccountStore(new InMemoryAccountStorageBackend());
+	await store.write({
+		version: 1,
+		providers: {
+			anthropic: {
+				active: "alpha",
+				accounts: { alpha: credential("alpha"), beta: credential("beta") },
+			},
+			"openai-codex": { active: "work", accounts: { work: credential("codex") } },
+		},
+	});
+	const mock = createMockPi();
+	const providers = [fakeProvider("anthropic"), fakeProvider("openai-codex")];
+	accountsExtension(mock.pi, { store, providers });
+	const runtime = runtimeHarness(mock);
+	const sessionManager = createTestSessionManager();
+	const current = createInteractiveAccountContext(
+		{
+			sessionManager,
+			model: { provider: "anthropic", id: "claude" },
+			modelRegistry: runtime.registry,
+		},
+		{ selections: ["Set default account", "Anthropic", "beta"] },
+	);
+	await mock.events.get("session_start")?.[0]?.({}, current.ctx);
+	const entriesBefore = sessionManager.getEntries().length;
+	await mock.commands.get("accounts")?.handler("", current.ctx);
+	assert.equal((await store.readProviderAsync("anthropic")).active, "beta");
+	assert.equal((await store.readProviderAsync("openai-codex")).active, "work");
+	assert.equal(runtime.keys.get("anthropic"), "access-alpha");
+	assert.equal(sessionManager.getEntries().length, entriesBefore);
+	assert.match(current.notifications.at(-1)?.message ?? "", /new sessions: beta.*unchanged/);
+
+	for (const reason of ["reload", "resume"]) {
+		await mock.events.get("session_shutdown")?.[0]?.({ reason }, current.ctx);
+		await mock.events.get("session_start")?.[0]?.({ reason }, current.ctx);
+		assert.equal(runtime.keys.get("anthropic"), "access-alpha");
+	}
+	await mock.events.get("session_shutdown")?.[0]?.({}, current.ctx);
+
+	// A fresh extension instance represents a restarted Pi process; copied entries model forks.
+	for (const copiedEntries of [false, true]) {
+		const restarted = createMockPi();
+		accountsExtension(restarted.pi, { store, providers });
+		const nextRuntime = runtimeHarness(restarted);
+		const nextSession = createTestSessionManager();
+		if (copiedEntries) {
+			for (const entry of sessionManager.getEntries()) {
+				if (entry.type === "custom") nextSession.appendCustomEntry(entry.customType, entry.data);
+			}
+		}
+		const next = createMockContext({
+			sessionManager: nextSession,
+			modelRegistry: nextRuntime.registry,
+		});
+		await restarted.events.get("session_start")?.[0]?.({}, next.ctx);
+		assert.equal(nextRuntime.keys.get("anthropic"), "access-beta");
+		assert.equal(latestSessionSelections(nextSession).anthropic, "beta");
+		await restarted.events.get("session_shutdown")?.[0]?.({}, next.ctx);
+	}
+});
+
+test("clearing a startup default keeps the named account active only in the current session", async () => {
+	const store = new AccountStore(new InMemoryAccountStorageBackend());
+	await store.updateProvider("anthropic", () => ({
+		active: "work",
+		accounts: { work: credential("work") },
+	}));
+	const mock = createMockPi();
+	accountsExtension(mock.pi, { store, providers: [fakeProvider("anthropic")] });
+	const runtime = runtimeHarness(mock);
+	const current = createInteractiveAccountContext(
+		{ modelRegistry: runtime.registry, model: { provider: "anthropic", id: "claude" } },
+		{ selections: ["Set default account", "Anthropic", "Pi built-in login"] },
+	);
+	await mock.events.get("session_start")?.[0]?.({}, current.ctx);
+	await mock.commands.get("accounts")?.handler("", current.ctx);
+	assert.equal((await store.readProviderAsync("anthropic")).active, undefined);
+	assert.ok((await store.readProviderAsync("anthropic")).accounts.work);
+	assert.equal(runtime.keys.get("anthropic"), "access-work");
+	await mock.events.get("session_shutdown")?.[0]?.({}, current.ctx);
+	const nextSession = createTestSessionManager();
+	const next = createMockContext({
+		sessionManager: nextSession,
+		modelRegistry: runtime.registry,
+	});
+	await mock.events.get("session_start")?.[0]?.({}, next.ctx);
+	assert.equal(latestSessionSelections(nextSession).anthropic, null);
+	assert.equal(runtime.keys.get("anthropic"), undefined);
+	await mock.events.get("session_shutdown")?.[0]?.({}, next.ctx);
+});
+
+test("removing the configured default clears it without changing another session selection", async () => {
+	const store = new AccountStore(new InMemoryAccountStorageBackend());
+	await store.updateProvider("anthropic", () => ({
+		active: "alpha",
+		accounts: { alpha: credential("alpha"), beta: credential("beta") },
+	}));
+	const mock = createMockPi();
+	accountsExtension(mock.pi, { store, providers: [fakeProvider("anthropic")] });
+	const runtime = runtimeHarness(mock);
+	const current = createInteractiveAccountContext(
+		{ modelRegistry: runtime.registry, model: { provider: "anthropic", id: "claude" } },
+		{
+			selections: [
+				"Set default account",
+				"Anthropic",
+				"beta",
+				"Remove account",
+				"Anthropic · beta",
+			],
+			confirms: [true],
+		},
+	);
+	await mock.events.get("session_start")?.[0]?.({}, current.ctx);
+	await mock.commands.get("accounts")?.handler("", current.ctx);
+	await mock.commands.get("accounts")?.handler("", current.ctx);
+	assert.equal((await store.readProviderAsync("anthropic")).active, undefined);
+	assert.equal(runtime.keys.get("anthropic"), "access-alpha");
+	await mock.events.get("session_shutdown")?.[0]?.({}, current.ctx);
 });
 
 test("switch another provider account selects provider before account", async () => {

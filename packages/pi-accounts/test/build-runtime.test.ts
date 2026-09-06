@@ -231,6 +231,40 @@ test("generated runtime is loadable by Pi's Jiti resource loader", async () => {
 		assert.ok(command);
 		await command.handler("", ctx as never);
 		assert.match(notifications.at(-1) ?? "", /requires interactive UI/iu);
+
+		const accountsFile = join(agentDir, "pi-accounts.json");
+		await writeFile(
+			accountsFile,
+			JSON.stringify({
+				version: 1,
+				providers: {
+					"openai-codex": {
+						accounts: {
+							work: {
+								type: "oauth",
+								access: "fixture-access",
+								refresh: "fixture-refresh",
+								expires: 2_000_000_000_000,
+							},
+						},
+					},
+				},
+			}),
+			{ mode: 0o600 },
+		);
+		const choices = ["Set default account", "OpenAI Codex", "work"];
+		await command.handler("", {
+			...ctx,
+			mode: "rpc",
+			hasUI: true,
+			ui: { ...ctx.ui, select: async () => choices.shift() },
+		} as never);
+		assert.equal(choices.length, 0);
+		assert.equal(
+			JSON.parse(await readFile(accountsFile, "utf8")).providers["openai-codex"].active,
+			"work",
+		);
+		assert.match(notifications.at(-1) ?? "", /new sessions: work.*unchanged/u);
 	} finally {
 		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
 		else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
