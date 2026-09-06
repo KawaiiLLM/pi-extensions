@@ -29,7 +29,8 @@ test("keeping S3 credentials preserves the session token and unknown fields", as
 		const { ctx, notifications } = createMockContext({
 			hasUI: true,
 			mode: "tui",
-			input: async (title: string) => (title === "Endpoint" ? "https://new.example.com" : "auto"),
+			input: async (title: string) =>
+				title.startsWith("Endpoint\n") ? "https://new.example.com" : "auto",
 			select: async () => choices.shift(),
 			custom: async () => {
 				secretPrompts += 1;

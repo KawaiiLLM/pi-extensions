@@ -195,7 +195,8 @@ function resolveSyncConfig(
 	skipSecretScan: boolean,
 ): AnySyncConfig {
 	const storagePath = normalizeStoragePath(setup.storage.path);
-	const namespace = storagePath.slice(storagePath.lastIndexOf("/") + 1);
+	const namespace =
+		storagePath === "./" ? "root" : storagePath.slice(storagePath.lastIndexOf("/") + 1);
 	const include = normalizeSyncInclude(setup.sync.include);
 	const common = {
 		setupName,
@@ -603,6 +604,7 @@ function optionalString(value: unknown, field: string) {
 }
 
 export function normalizeStoragePath(value: string) {
+	if (value.trim() === "." || value.trim() === "./") return "./";
 	const normalized = value.trim().replace(/^\/+|\/+$/gu, "");
 	if (
 		!normalized ||

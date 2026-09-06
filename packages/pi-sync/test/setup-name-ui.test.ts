@@ -60,7 +60,7 @@ test.each([
 				}
 			},
 		});
-		assert.equal(await promptInitialSetupName(ctx, "Git"), "default");
+		assert.equal(await promptInitialSetupName(ctx), "default");
 		assert.equal(submitted, true);
 		assert.ok(lines.every((line) => visibleWidth(line) <= width));
 		const text = stripVTControlCharacters(lines.join(" ")).replace(/\s+/gu, " ");
@@ -93,7 +93,7 @@ test("RPC name input keeps guidance free of terminal styling", async () => {
 			return "";
 		},
 	});
-	assert.equal(await promptInitialSetupName(ctx, "Git"), "default");
+	assert.equal(await promptInitialSetupName(ctx), "default");
 	assert.equal(
 		renderedTitle,
 		"Sync setup name\nFor example: home or work. Leave blank for default.",
@@ -122,19 +122,12 @@ test("Pi core name input cancellation does not accept the default", async () => 
 			}
 		},
 	});
-	assert.equal(await promptInitialSetupName(ctx, "Git"), undefined);
+	assert.equal(await promptInitialSetupName(ctx), undefined);
 	assert.equal(cancelled, true);
 });
 
 const presets = ["Cloudflare R2", "Other S3-compatible storage", "WebDAV", "Git"];
 const invalidCommonNames = [
-	".",
-	"..",
-	"team/../work",
-	"team/./work",
-	"team//work",
-	"/work",
-	"team\\work",
 	"__proto__",
 	"prototype",
 	"constructor",
@@ -142,7 +135,14 @@ const invalidCommonNames = [
 	"work\u001b[31m",
 	"work\u0085profile",
 ];
-const invalidGitNames = [
+const independentNames = [
+	".",
+	"..",
+	"team/../work",
+	"team/./work",
+	"team//work",
+	"/work",
+	"team\\work",
 	"work profile",
 	"work..profile",
 	"work@{profile}",
@@ -159,15 +159,18 @@ const invalidGitNames = [
 	"team.lock/work",
 	"work.",
 	"work/",
+	"work///",
+	"team/work/",
+	"work /",
+	"/",
+	" work/ ",
+	"work%2F",
+	".git",
 ];
 
-const s3Presets = ["Cloudflare R2", "Other S3-compatible storage"];
-const noncanonicalS3Names = ["work/", "work///", "team/work/", "work /", "/", " work/ "];
-const invalidCases = [
-	...presets.flatMap((preset) => invalidCommonNames.map((name) => ({ preset, name }))),
-	...invalidGitNames.map((name) => ({ preset: "Git", name })),
-	...s3Presets.flatMap((preset) => noncanonicalS3Names.map((name) => ({ preset, name }))),
-];
+const invalidCases = presets.flatMap((preset) =>
+	invalidCommonNames.map((name) => ({ preset, name })),
+);
 
 test.each(invalidCases)(
 	"$preset rejects name $name before backend prompts and allows correction",
@@ -203,52 +206,40 @@ test.each(invalidCases)(
 );
 
 const validCases = [
+	...presets.flatMap((preset) => independentNames.map((name) => ({ preset, name }))),
 	...presets.flatMap((preset) =>
 		["default", "team/work", "-work", "refs/work", "@", "工作", "a".repeat(100)].map((name) => ({
 			preset,
 			name,
 		})),
 	),
-	...presets
-		.filter((preset) => preset !== "Git")
-		.flatMap((preset) =>
-			["work profile", ".git", "work.lock", "work..profile", "work%2F"].map((name) => ({
-				preset,
-				name,
-			})),
-		),
-	...["work/", "work///", "team/work/"].map((name) => ({ preset: "WebDAV", name })),
 ];
 
-test.each(validCases)("$preset accepts backend-valid name $name", async ({ preset, name }) => {
-	await withTempHome(async () => {
-		const titles: string[] = [];
-		const { ctx, notifications } = createMockContext({
-			hasUI: true,
-			mode: "tui",
-			select: async () => preset,
-			input: async (title: string) => {
-				titles.push(title);
-				return titles.length === 1 ? name : undefined;
-			},
+test.each(validCases)(
+	"$preset accepts name $name independently of its path",
+	async ({ preset, name }) => {
+		await withTempHome(async () => {
+			const titles: string[] = [];
+			const { ctx, notifications } = createMockContext({
+				hasUI: true,
+				mode: "tui",
+				select: async () => preset,
+				input: async (title: string) => {
+					titles.push(title);
+					return titles.length === 1 ? name : undefined;
+				},
+			});
+			assert.equal(await showSetupWizard(ctx), false);
+			assert.equal(titles.length, 2);
+			assert.doesNotMatch(titles[1], /^Sync setup name/u);
+			assert.deepEqual(notifications, []);
 		});
-		assert.equal(await showSetupWizard(ctx), false);
-		assert.equal(titles.length, 2);
-		assert.doesNotMatch(titles[1], /^Sync setup name/u);
-		assert.deepEqual(notifications, []);
-	});
-});
+	},
+);
 
-test.each(
-	[
-		{ preset: "Git", name: "work profile" },
-		{ preset: "WebDAV", name: ".." },
-		{ preset: "Cloudflare R2", name: "work/" },
-		{ preset: "Other S3-compatible storage", name: "work///" },
-	].flatMap((entry) => [false, true].map((abort) => ({ ...entry, abort }))),
-)(
+test.each(presets.flatMap((preset) => [false, true].map((abort) => ({ preset, abort }))))(
 	"$preset name correction cancellation (abort=$abort) never advances setup",
-	async ({ preset, name, abort }) => {
+	async ({ preset, abort }) => {
 		await withTempHome(async () => {
 			const controller = new AbortController();
 			const titles: string[] = [];
@@ -260,7 +251,7 @@ test.each(
 				input: async (title: string, _placeholder?: string, options?: { signal?: AbortSignal }) => {
 					titles.push(title);
 					signals.push(options?.signal);
-					if (titles.length === 1) return name;
+					if (titles.length === 1) return "__proto__";
 					if (abort) {
 						controller.abort(new DOMException("Session shut down", "AbortError"));
 						return "default";

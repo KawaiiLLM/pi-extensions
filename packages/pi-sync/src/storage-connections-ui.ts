@@ -2,7 +2,13 @@ import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { defineMenu, runMenu } from "@narumitw/pi-tui-kit";
 import { isCloudflareR2Endpoint, readLocalConfigObject } from "./config.js";
 import { showAddGitStorageProfile, showEditGitStorageProfile } from "./git-ui.js";
-import { errorMessage, ownRecord, requiredInput, safeTerminalText } from "./manager-helpers.js";
+import {
+	errorMessage,
+	ownRecord,
+	requiredInput,
+	requiredValueInput,
+	safeTerminalText,
+} from "./manager-helpers.js";
 import {
 	applyS3CredentialUpdate,
 	chooseS3Credentials,
@@ -220,7 +226,12 @@ async function editStorageConnection(
 		signal,
 	);
 	if (!endpoint || signal?.aborted) return;
-	const region = await requiredInput(ctx, "Region", String(profile.region ?? "auto"), signal);
+	const region = await requiredInput(
+		ctx,
+		"Region\n\nUse your bucket's region; Cloudflare R2 uses auto.",
+		String(profile.region ?? "auto"),
+		signal,
+	);
 	if (!region || signal?.aborted) return;
 	const storedCredentials = ownRecord(profile.credentials) ?? {};
 	const credentials = await chooseS3CredentialUpdate(
@@ -285,14 +296,14 @@ export async function showAddStorageConnection(ctx: ExtensionCommandContext, sig
 	if (preset === "Git") return showAddGitStorageProfile(ctx, signal);
 	const name = await requiredInput(
 		ctx,
-		"Name this storage connection",
+		"Name this storage connection\n\nA local label for a reusable connection; this does not create a bucket.",
 		preset === "Cloudflare R2" ? "r2" : "s3",
 		signal,
 	);
 	if (!name || signal?.aborted) return false;
-	const endpoint = await requiredInput(
+	const endpoint = await requiredValueInput(
 		ctx,
-		"Endpoint",
+		"S3 API endpoint\n\nUse the API URL from your storage provider, not its web console.",
 		preset === "Cloudflare R2"
 			? "https://<account-id>.r2.cloudflarestorage.com"
 			: "https://s3.example.com",
@@ -300,7 +311,14 @@ export async function showAddStorageConnection(ctx: ExtensionCommandContext, sig
 	);
 	if (!endpoint || signal?.aborted) return false;
 	const region =
-		preset === "Cloudflare R2" ? "auto" : await requiredInput(ctx, "Region", "us-east-1", signal);
+		preset === "Cloudflare R2"
+			? "auto"
+			: await requiredInput(
+					ctx,
+					"Region\n\nUse the region assigned to your bucket by the provider.",
+					"us-east-1",
+					signal,
+				);
 	if (!region || signal?.aborted) return false;
 	const credentials = await chooseS3Credentials(ctx, signal);
 	if (!credentials || signal?.aborted) return false;

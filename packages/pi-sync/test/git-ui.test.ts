@@ -52,7 +52,7 @@ for (const remote of [
 test("first Git setup writes the exact version 3 connection and setup shapes", async () => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
-		const inputs = ["github", "git@github.com:user/pi-sync.git", "pi-sync/home", "pi-sync/home"];
+		const inputs = ["git@github.com:user/pi-sync.git", "pi-sync/home", "pi-sync/home"];
 		const choices = ["Enable automatic sync", "Save setup"];
 		const { ctx, notifications } = createMockContext({
 			hasUI: true,
@@ -62,12 +62,12 @@ test("first Git setup writes the exact version 3 connection and setup shapes", a
 		});
 		assert.equal(await showGitSetup(ctx, "home"), true);
 		const raw = await readLocalConfigObject();
-		assert.deepEqual(raw?.storageConnections.github, {
+		assert.deepEqual(raw?.storageConnections.home, {
 			type: "git",
 			remote: "git@github.com:user/pi-sync.git",
 		});
 		assert.deepEqual(raw?.syncSetups.home.storage, {
-			connection: "github",
+			connection: "home",
 			branch: "pi-sync/home",
 			path: "pi-sync/home",
 		});
@@ -204,6 +204,48 @@ test("Git setup edit rejects coordinates changed while its review is open", asyn
 		const config = await loadConfig("work");
 		assert.equal(config.connectionName, "archive");
 		assert.equal(config.storagePath, "pi-sync/rebound");
+	});
+});
+
+test("Git setup preserves unknown empty-catalog settings and edit defaults retain the reviewed location", async () => {
+	await withTempHome(async (agentDir) => {
+		mkdirSync(agentDir, { recursive: true });
+		writeFileSync(
+			localConfigPath(),
+			JSON.stringify({
+				version: 3,
+				onSwitch: "ask-before-pull",
+				storageConnections: {},
+				syncSetups: {},
+				future: { keep: true },
+			}),
+			{ mode: 0o600 },
+		);
+		const inputs = ["git@github.com:user/pi-sync.git", "archives", "backups/home"];
+		const choices = ["Keep automatic sync off", "Save setup"];
+		const { ctx } = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			input: async () => inputs.shift(),
+			select: async () => choices.shift(),
+		});
+		assert.equal(await showGitSetup(ctx, "home"), true);
+		assert.deepEqual((await readLocalConfigObject())?.future, { keep: true });
+		const before = readFileSync(localConfigPath());
+		const titles: string[] = [];
+		const editCtx = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			input: async (title: string) => {
+				titles.push(title);
+				return "";
+			},
+			select: async () => "Save sync setup",
+		});
+		assert.equal(await showEditGitTarget(editCtx.ctx, await loadPartialConfig("home")), true);
+		assert.match(titles[0], /Default: archives/u);
+		assert.match(titles[1], /Default: backups\/home/u);
+		assert.deepEqual(readFileSync(localConfigPath()), before);
 	});
 });
 

@@ -1,38 +1,28 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { normalizeStoragePath, validateConfigName } from "./config.js";
-import { normalizeGitBranch, normalizeGitDirectory } from "./git-config.js";
-import { errorMessage, requiredInput, safeTerminalText } from "./manager-helpers.js";
-import { normalizeWebDavPath } from "./webdav-config.js";
+import { validateConfigName } from "./config.js";
+import { errorMessage, safeTerminalText } from "./manager-helpers.js";
 
-export async function promptInitialSetupName(
-	ctx: ExtensionCommandContext,
-	preset: string,
-	signal?: AbortSignal,
-) {
+export async function promptInitialSetupName(ctx: ExtensionCommandContext, signal?: AbortSignal) {
 	while (!signal?.aborted) {
 		const hint = "For example: home or work. Leave blank for default.";
 		// Pi styles the whole input title as accent; give only the guidance a muted role.
 		const guidance = ctx.mode === "tui" ? ctx.ui.theme.fg("muted", hint) : hint;
-		const name = await requiredInput(ctx, `Sync setup name\n${guidance}`, "default", signal);
-		if (!name) return undefined;
+		// This compact prompt owns its default hint; the general helper would repeat it.
+		const value = await ctx.ui.input(`Sync setup name\n${guidance}`, undefined, { signal });
+		if (signal?.aborted) {
+			throw signal.reason instanceof Error
+				? signal.reason
+				: new DOMException("The operation was aborted", "AbortError");
+		}
+		if (value === undefined) return undefined;
+		const name = value.trim() || "default";
+		if (name.includes("<") || name.includes(">")) return undefined;
 		try {
 			validateConfigName(name, "sync setup");
-			// Validate the same suggestions the backend prompts will offer, without changing the name.
-			const suggestedPath = `pi-sync/${name}`;
-			const normalizedPath = normalizeStoragePath(suggestedPath);
-			if (preset === "Git") {
-				normalizeGitBranch(suggestedPath);
-				normalizeGitDirectory(suggestedPath);
-			} else if (preset === "WebDAV") {
-				normalizeWebDavPath(suggestedPath);
-			} else if (normalizedPath !== suggestedPath) {
-				// S3 reviews the raw suggestion; WebDAV normalizes its path before review.
-				throw new Error("S3 setup names must not end with a slash.");
-			}
 			return name;
 		} catch (error) {
 			ctx.ui.notify(
-				`This name cannot be used for the sync setup or its suggested storage location. ${safeTerminalText(errorMessage(error))} Enter another name (for example, default).`,
+				`This name cannot be used for the sync setup. ${safeTerminalText(errorMessage(error))} Enter another name (for example, default).`,
 				"warning",
 			);
 		}

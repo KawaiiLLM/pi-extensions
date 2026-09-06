@@ -41,6 +41,7 @@ export function normalizeWebDavUrl(value: string | undefined) {
 }
 
 export function normalizeWebDavPath(value: string | undefined) {
+	if (value?.trim() === "." || value?.trim() === "./") return "./";
 	const normalized = trimSlashes(normalizeOptionalString(value) ?? DEFAULT_PATH);
 	if (
 		!normalized ||

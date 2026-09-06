@@ -2,10 +2,15 @@ import type { LatestPointer, SyncConfig } from "../src/types.js";
 import { registerSyncBackendContractSuite } from "./backend-contract-suite.js";
 import { createSyncBackend } from "./backend-factory-eager.js";
 
-registerSyncBackendContractSuite("s3", () => {
-	const harness = new ContractS3Harness();
-	return { backend: createSyncBackend(s3Config()), dispose: harness.install() };
-});
+for (const prefix of ["pi-sync", "./"]) {
+	registerSyncBackendContractSuite(`s3 (${prefix})`, () => {
+		const harness = new ContractS3Harness();
+		const config = s3Config();
+		config.backend.destination.prefix = prefix;
+		config.storagePath = prefix;
+		return { backend: createSyncBackend(config), dispose: harness.install() };
+	});
+}
 
 class ContractS3Harness {
 	private snapshots = new Map<string, Buffer>();

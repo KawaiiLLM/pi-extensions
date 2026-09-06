@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DefaultResourceLoader, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { test } from "vitest";
+import { createMockContext } from "../../../test/support.js";
 
 const packageRoot = resolve("packages/pi-sync");
 const builderUrl = pathToFileURL(join(packageRoot, "scripts/build-runtime.mjs")).href;
@@ -44,6 +45,7 @@ test("generated runtime preserves every first-use import boundary", async () => 
 			"src/setup-switch.ts",
 			"src/sync-operations.ts",
 			"src/manager-ui.ts",
+			"src/setup-location-ui.ts",
 			"src/manager-result-dispatcher.ts",
 			"src/file-selection.ts",
 			"src/remote-selection-ui.ts",
@@ -103,7 +105,33 @@ test("generated runtime is mapped, external, self-contained, and loadable by Pi"
 		const loaded = loader.getExtensions();
 		assert.deepEqual(loaded.errors, []);
 		assert.equal(loaded.extensions.length, 1);
-		assert.ok(loaded.extensions[0]?.commands.has("sync"));
+		const command = loaded.extensions[0]?.commands.get("sync");
+		assert.ok(command);
+		const titles: string[] = [];
+		const { ctx } = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			input: async (title: string) =>
+				title.startsWith("Sync setup name")
+					? "default"
+					: "https://account.r2.cloudflarestorage.com",
+			select: async (title: string) => {
+				titles.push(title);
+				return title.startsWith("Set up sync") ? "Cloudflare R2" : "Cancel";
+			},
+		});
+		try {
+			await command.handler("init", ctx);
+			assert.ok(
+				titles.some(
+					(title) =>
+						title.startsWith("Choose storage location") && title.includes("Remote path: ./"),
+				),
+				titles.join("\n"),
+			);
+		} finally {
+			loaded.runtime.invalidate("generated setup smoke complete");
+		}
 	} finally {
 		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
 		else process.env.PI_CODING_AGENT_DIR = previousAgentDir;

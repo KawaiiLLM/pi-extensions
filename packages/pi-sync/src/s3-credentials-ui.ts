@@ -1,4 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { requiredValueInput } from "./manager-helpers.js";
 import { promptSecret } from "./secret-input.js";
 
 export interface ChosenS3Credentials {
@@ -55,7 +56,12 @@ export async function chooseS3Credentials(
 	);
 	throwIfAborted(signal);
 	if (choice !== "Store credentials privately") return undefined;
-	const accessKeyId = await requiredCredentialInput(ctx, "Access key ID", "access-key-id", signal);
+	const accessKeyId = await requiredValueInput(
+		ctx,
+		"Access key ID\n\nUse the S3 API access key ID issued by your provider, not the secret access key.",
+		"access-key-id",
+		signal,
+	);
 	if (!accessKeyId) return undefined;
 	const secretAccessKey = await promptSecret(ctx, "Secret access key", { signal });
 	throwIfAborted(signal);
@@ -65,23 +71,6 @@ export async function chooseS3Credentials(
 		summary: "Stored privately (values hidden)",
 		ready: true,
 	};
-}
-
-async function requiredCredentialInput(
-	ctx: ExtensionCommandContext,
-	title: string,
-	placeholder: string,
-	signal?: AbortSignal,
-) {
-	const value = await ctx.ui.input(title, placeholder, { signal });
-	throwIfAborted(signal);
-	if (value === undefined) return undefined;
-	const normalized = value.trim();
-	if (!normalized) {
-		ctx.ui.notify(`${title} is required.`, "warning");
-		return undefined;
-	}
-	return normalized.includes("<") || normalized.includes(">") ? undefined : normalized;
 }
 
 function throwIfAborted(signal?: AbortSignal) {

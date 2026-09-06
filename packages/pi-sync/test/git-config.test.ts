@@ -42,6 +42,30 @@ test("Git v3 config is credential-free and uses the complete reviewed path", asy
 	});
 });
 
+test.each([".", "./", " ./ "])(
+	"Git root path %j resolves canonically and preserves identity",
+	async (rootPath) => {
+		await withTempHome(async (agentDir) => {
+			mkdirSync(agentDir, { recursive: true });
+			writeFileSync(localConfigPath(), JSON.stringify(gitSettings(rootPath, "main")), {
+				mode: 0o600,
+			});
+			const config = await loadConfig();
+			assert.equal(config.storagePath, "./");
+			assert.equal(config.snapshotIdentity, "root");
+			assert.equal(config.backend.type, "git");
+			if (config.backend.type !== "git") return;
+			assert.deepEqual(config.backend.destination, {
+				branch: "main",
+				directory: "./",
+				namespace: "root",
+			});
+			writeFileSync(localConfigPath(), JSON.stringify(gitSettings("./", "main")), { mode: 0o600 });
+			assert.equal(statePathForConfig(await loadConfig()), statePathForConfig(config));
+		});
+	},
+);
+
 test("Git state identity changes by remote, branch, and path but not setup name", async () => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
@@ -79,7 +103,17 @@ test("Git normalization rejects secret-bearing and unsafe transports, refs, and 
 	for (const branch of ["-bad", "refs/heads/main", "bad..name", "bad lock.lock"]) {
 		assert.throws(() => normalizeGitBranch(branch), /Git branch/u);
 	}
-	for (const directory of ["../bad", ".git/data", "bad\\path"]) {
+	for (const directory of [
+		"../bad",
+		".git/data",
+		"bad\\path",
+		"./nested",
+		"nested/./bad",
+		"nested/../bad",
+		".//",
+		"/",
+		"/./",
+	]) {
 		assert.throws(() => normalizeGitDirectory(directory), /Git directory/u);
 	}
 });

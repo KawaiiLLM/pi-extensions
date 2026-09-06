@@ -40,13 +40,12 @@ export async function saveNewV3Settings(
 			},
 		},
 	};
-	await updateLocalConfig((current) => {
+	return updateLocalConfig((current) => {
 		if (Object.keys(current.storageConnections).length || Object.keys(current.syncSetups).length) {
 			throw new Error(`Settings already exist: ${localConfigPath()}`);
 		}
-		return settings;
+		return { ...current, ...settings };
 	}, signal);
-	return settings;
 }
 
 export async function addStorageConnection(

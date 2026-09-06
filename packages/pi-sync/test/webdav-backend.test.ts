@@ -86,21 +86,26 @@ test("WebDAV servers with non-rotating strong ETags remain read-only", async () 
 	}
 });
 
-test("WebDAV servers that ignore preconditions remain read-only", async () => {
-	const server = await new MockWebDavServer({ ignoreConditions: true }).start();
-	try {
-		const backend = new WebDavSyncBackend(webDavConfig(server.url));
-		await assert.rejects(
-			backend.publishSnapshot(snapshot([]), { kind: "missing" }),
-			/ignored If-None-Match|read-only/i,
-		);
-		assert.equal(server.resources.has("/dav/pi-sync/latest.json"), false);
-		assert.ok((await backend.diagnose()).some((item) => item.level === "error"));
-		assert.equal(backend.capability, "conditional-required");
-	} finally {
-		await server.close();
-	}
-});
+test.each(["pi-sync", "./"])(
+	"WebDAV servers that ignore preconditions remain read-only at %s",
+	async (storagePath) => {
+		const server = await new MockWebDavServer({ ignoreConditions: true }).start();
+		try {
+			const config = webDavConfig(server.url);
+			config.destination.path = storagePath;
+			const backend = new WebDavSyncBackend(config);
+			await assert.rejects(
+				backend.publishSnapshot(snapshot([]), { kind: "missing" }),
+				/ignored If-None-Match|read-only/i,
+			);
+			assert.ok(![...server.resources.keys()].some((key) => key.endsWith("/latest.json")));
+			assert.ok((await backend.diagnose()).some((item) => item.level === "error"));
+			assert.equal(backend.capability, "conditional-required");
+		} finally {
+			await server.close();
+		}
+	},
+);
 
 test("WebDAV rejects control-bearing remote pointer metadata and references", async () => {
 	for (const unsafe of [

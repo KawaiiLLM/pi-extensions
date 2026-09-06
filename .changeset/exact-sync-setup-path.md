@@ -2,4 +2,4 @@
 "@narumitw/pi-sync": patch
 ---
 
-Reject trailing slashes in initial R2/S3 setup names before collecting connection details, so suggested paths match the exact path reviewed and used for sync. Allow immediate correction without changing valid WebDAV names.
+Keep initial R2/S3 storage paths identical in the setup review, saved settings, and resolved backend configuration. Setup names are independent of the default root path, including names with trailing slashes.

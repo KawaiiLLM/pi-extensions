@@ -83,7 +83,7 @@ test.each([
 		await mock.commands.get("sync")?.handler("", ctx);
 		const saved = await readLocalConfigObject();
 		assert.equal(saved?.skipSecretScan, false);
-		assert.deepEqual(saved?.storageConnections.r2, {
+		assert.deepEqual(saved?.storageConnections[name], {
 			type: "s3",
 			endpoint: "https://account.r2.cloudflarestorage.com",
 			region: "auto",
@@ -91,76 +91,88 @@ test.each([
 		});
 		assert.equal(saved?.activeSyncSetup, name);
 		assert.deepEqual(saved?.syncSetups[name].storage, {
-			connection: "r2",
+			connection: name,
 			bucket: "pi-sync",
-			path: `pi-sync/${name}`,
+			path: "./",
 		});
 		assert.equal(
 			inputTitles[0],
 			"Sync setup name\nFor example: home or work. Leave blank for default.",
 		);
-		assert.deepEqual(inputTitles.slice(1), ["Cloudflare R2 endpoint", "Access key ID"]);
-		assert.ok(rendered.join("\n").includes(`Storage location: pi-sync/${name}`));
+		assert.deepEqual(
+			inputTitles.slice(1).map((title) => title.split("\n")[0]),
+			["Cloudflare R2 endpoint", "Access key ID"],
+		);
+		assert.match(inputTitles[1], /Example: https:\/\/<account-id>\.r2\.cloudflarestorage\.com/u);
+		assert.ok(rendered.join("\n").includes("Storage location: ./"));
 		assert.doesNotMatch(rendered.join("\n"), /What will this sync setup be used for/u);
 		assert.doesNotMatch(rendered.join("\n"), /profiles\/|secret-key|access-key/u);
 	});
 });
 
-test.each(["Cloudflare R2", "Other S3-compatible storage"])(
-	"%s setup corrects a trailing-slash name and uses the exact reviewed path",
-	async (preset) => {
-		await withTempHome(async () => {
-			const r2 = preset === "Cloudflare R2";
-			const choices = [
-				preset,
-				r2
-					? "Use suggested location (recommended)"
-					: "Use existing bucket with suggested path (recommended)",
-				"Store credentials privately",
-				"Minimal settings",
-				"Keep automatic sync off",
-				"Keep sessions off (recommended)",
-				"Save sync setup",
-			];
-			const inputs = [
-				r2 ? "https://account.r2.cloudflarestorage.com" : "https://s3.example.com",
-				...(r2 ? [] : ["us-east-1", "existing-bucket"]),
-				"access-key",
-			];
-			const titles: string[] = [];
-			let nameCalls = 0;
-			let review = "";
-			const { ctx, notifications } = createMockContext({
-				hasUI: true,
-				mode: "tui",
-				select: async (title: string) => {
-					if (title.startsWith("Review sync setup")) review = title;
-					return choices.shift();
-				},
-				input: async (title: string) => {
-					titles.push(title);
-					if (title.startsWith("Sync setup name")) return nameCalls++ === 0 ? "work/" : "work";
-					return inputs.shift();
-				},
-				custom: secretInput("secret-key"),
-			});
-			assert.equal(await showSetupWizard(ctx), true);
-			const reviewedPath = review.split("\n").find((line) => line.startsWith("Storage location: "));
-			assert.equal(reviewedPath, "Storage location: pi-sync/work");
-			assert.match(titles[0], /^Sync setup name/u);
-			assert.equal(titles[1], titles[0]);
-			assert.equal(notifications.filter((item) => item.level === "warning").length, 1);
-			const saved = await readLocalConfigObject();
-			assert.equal(saved?.activeSyncSetup, "work");
-			assert.equal(saved?.syncSetups.work.storage.path, "pi-sync/work");
-			const config = await loadConfig();
-			assert.equal(config.storagePath, "pi-sync/work");
-			assert.equal(config.backend.type, "s3");
-			if (config.backend.type !== "s3") return;
-			assert.equal(config.backend.destination.prefix, "pi-sync/work");
+test.each(
+	["Cloudflare R2", "Other S3-compatible storage"].flatMap((preset) =>
+		["work/", "work///", "team/work/", "work /", "/", " work/ "].map((input) => ({
+			preset,
+			input,
+		})),
+	),
+)("$preset setup named $input uses the exact reviewed root path", async ({ preset, input }) => {
+	await withTempHome(async () => {
+		const r2 = preset === "Cloudflare R2";
+		const choices = [
+			preset,
+			r2
+				? "Use suggested location (recommended)"
+				: "Use existing bucket with suggested path (recommended)",
+			"Store credentials privately",
+			"Minimal settings",
+			"Keep automatic sync off",
+			"Keep sessions off (recommended)",
+			"Save sync setup",
+		];
+		const inputs = [
+			r2 ? "https://account.r2.cloudflarestorage.com" : "https://s3.example.com",
+			...(r2 ? [] : ["us-east-1", "existing-bucket"]),
+			"access-key",
+		];
+		const titles: string[] = [];
+		let nameCalls = 0;
+		let review = "";
+		const { ctx, notifications } = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			select: async (title: string) => {
+				if (title.startsWith("Review sync setup")) review = title;
+				return choices.shift();
+			},
+			input: async (title: string) => {
+				titles.push(title);
+				if (title.startsWith("Sync setup name")) {
+					nameCalls++;
+					return input;
+				}
+				return inputs.shift();
+			},
+			custom: secretInput("secret-key"),
 		});
-	},
-);
+		assert.equal(await showSetupWizard(ctx), true);
+		const reviewedPath = review.split("\n").find((line) => line.startsWith("Storage location: "));
+		assert.equal(reviewedPath, "Storage location: ./");
+		assert.match(titles[0], /^Sync setup name/u);
+		assert.equal(nameCalls, 1);
+		assert.equal(notifications.filter((item) => item.level === "warning").length, 0);
+		const saved = await readLocalConfigObject();
+		const name = input.trim();
+		assert.equal(saved?.activeSyncSetup, name);
+		assert.equal(saved?.syncSetups[name].storage.path, "./");
+		const config = await loadConfig();
+		assert.equal(config.storagePath, "./");
+		assert.equal(config.backend.type, "s3");
+		if (config.backend.type !== "s3") return;
+		assert.equal(config.backend.destination.prefix, "./");
+	});
+});
 
 test("generic S3 setup reviews one complete custom storage path", async () => {
 	await withTempHome(async (agentDir) => {
@@ -182,7 +194,6 @@ test("generic S3 setup reviews one complete custom storage path", async () => {
 			"work",
 			"https://s3.example.com",
 			"ap-northeast-1",
-			"archive",
 			"company-pi",
 			"teams/pi/work",
 			"access-key",
@@ -201,11 +212,12 @@ test("generic S3 setup reviews one complete custom storage path", async () => {
 		await mock.commands.get("sync")?.handler("", ctx);
 		const saved = await readLocalConfigObject();
 		assert.deepEqual(saved?.syncSetups.work.storage, {
-			connection: "archive",
+			connection: "work",
 			bucket: "company-pi",
 			path: "teams/pi/work",
 		});
-		assert.ok(inputTitles.includes("Storage path"));
+		assert.ok(inputTitles.some((title) => title.startsWith("Storage path\n")));
+		assert.equal(inputTitles.filter((title) => /name/iu.test(title.split("\n")[0])).length, 1);
 		assert.ok(!inputTitles.includes("Remote prefix"));
 		assert.ok(!inputTitles.includes("Remote namespace"));
 	});
@@ -379,7 +391,7 @@ test("replacing stored S3 credentials drops the prior session token", async () =
 	});
 });
 
-test("S3 manager reuses a connection and derives a separate complete path", async () => {
+test("S3 manager reuses a connection and defaults a new setup to the bucket root", async () => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
 		writeSettings();
@@ -390,7 +402,7 @@ test("S3 manager reuses a connection and derives a separate complete path", asyn
 			"Sync setups…",
 			"Add sync setup",
 			"r2",
-			"Same bucket as “home” (recommended)",
+			"Same bucket as “home”",
 			"Recommended Pi settings",
 			"Add sync setup",
 			undefined,
@@ -410,8 +422,10 @@ test("S3 manager reuses a connection and derives a separate complete path", asyn
 		await mock.commands.get("sync")?.handler("", ctx);
 		const config = await loadConfig("work");
 		assert.equal(config.connectionName, "r2");
-		assert.equal(config.storagePath, "pi-sync/work");
-		assert.match(rendered.join("\n"), /Remote path: pi-sync\/work/u);
+		assert.equal(config.storagePath, "./");
+		assert.equal((await loadConfig("home")).storagePath, "pi-sync/home");
+		assert.match(rendered.join("\n"), /Remote path: \.\//u);
+		assert.match(rendered.join("\n"), /different path or bucket for independent setups/u);
 		assert.doesNotMatch(rendered.join("\n"), /profiles\//u);
 	});
 });

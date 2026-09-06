@@ -4,11 +4,11 @@ import { type RunRoute, runCancellableOperation } from "./cancellable-operation.
 import { setSyncSetupCompletions } from "./command.js";
 import {
 	configuredSyncSetupNames,
-	isCloudflareR2Endpoint,
 	loadConfig,
 	loadOnSwitch,
 	loadPartialConfig,
 	localConfigPath,
+	normalizeStoragePath,
 	readLocalConfigObject,
 	syncConfigReviewIdentity,
 } from "./config.js";
@@ -22,8 +22,8 @@ import {
 import {
 	errorMessage,
 	ownRecord,
-	requiredExistingBucket,
 	requiredInput,
+	requiredValueInput,
 	safeTerminalText,
 } from "./manager-helpers.js";
 import { recoverSyncAccess } from "./manager-recovery.js";
@@ -38,6 +38,11 @@ import {
 	updateSyncSetup,
 } from "./settings-management.js";
 import { showSyncSettings } from "./settings-ui.js";
+import {
+	chooseAdditionalRemoteLocation,
+	chooseInitialRemoteLocation,
+	promptAvailableSetupStorage,
+} from "./setup-location-ui.js";
 import { promptInitialSetupName } from "./setup-name-ui.js";
 import { useSyncSetup } from "./setup-switch.js";
 import { showAddStorageConnection, showStorageConnections } from "./storage-connections-ui.js";
@@ -356,7 +361,7 @@ export async function showSetupWizard(ctx: ExtensionCommandContext, signal?: Abo
 		{ signal },
 	);
 	if (signal?.aborted || !preset || preset === "Cancel") return false;
-	const targetName = await promptInitialSetupName(ctx, preset, signal);
+	const targetName = await promptInitialSetupName(ctx, signal);
 	if (!targetName) return false;
 	if (preset === "WebDAV") {
 		const saved = await showWebDavSetup(ctx, targetName, signal);
@@ -370,9 +375,11 @@ export async function showSetupWizard(ctx: ExtensionCommandContext, signal?: Abo
 		if (saved) await refreshTargetCompletions();
 		return saved;
 	}
-	const endpoint = await requiredInput(
+	const endpoint = await requiredValueInput(
 		ctx,
-		preset === "Cloudflare R2" ? "Cloudflare R2 endpoint" : "S3-compatible endpoint",
+		preset === "Cloudflare R2"
+			? "Cloudflare R2 endpoint\n\nCopy the S3 API endpoint from your R2 account; replace <account-id>."
+			: "S3-compatible endpoint\n\nUse your provider's S3 API URL, not its web console.",
 		preset === "Cloudflare R2"
 			? "https://<account-id>.r2.cloudflarestorage.com"
 			: "https://s3.example.com",
@@ -381,7 +388,12 @@ export async function showSetupWizard(ctx: ExtensionCommandContext, signal?: Abo
 	if (!endpoint) return false;
 	let region = "auto";
 	if (preset !== "Cloudflare R2") {
-		const selectedRegion = await requiredInput(ctx, "Storage region", "us-east-1", signal);
+		const selectedRegion = await requiredInput(
+			ctx,
+			"Storage region\n\nUse the region assigned to your bucket by the provider.",
+			"us-east-1",
+			signal,
+		);
 		if (!selectedRegion) return false;
 		region = selectedRegion;
 	}
@@ -717,7 +729,13 @@ async function showAddTarget(ctx: ExtensionCommandContext, signal?: AbortSignal)
 	}
 	const location = await chooseAdditionalRemoteLocation(ctx, raw, profile, name, signal);
 	if (!location) return;
-	const { bucket, path: storagePath } = location;
+	const storage = await promptAvailableSetupStorage(
+		ctx,
+		{ connection: profile, ...location },
+		signal,
+	);
+	if (!storage) return;
+	const { bucket, path: storagePath } = storage;
 	const preset = await ctx.ui.select(
 		"Choose included content",
 		["Recommended Pi settings", "Minimal settings", "Cancel"],
@@ -785,9 +803,14 @@ async function showEditTarget(ctx: ExtensionCommandContext, name: string, signal
 	}
 	const bucket = await requiredInput(ctx, "Bucket", partial.bucket ?? "pi-sync", signal);
 	if (!bucket) return;
-	const storagePath = await requiredInput(ctx, "Storage path", partial.storagePath, signal);
+	const storagePath = await requiredInput(
+		ctx,
+		"Storage path\n\nObject-key prefix inside the bucket, not your local filesystem.",
+		partial.storagePath,
+		signal,
+	);
 	if (!storagePath) return;
-	const normalizedPath = storagePath.replace(/^\/+|\/+$/gu, "");
+	const normalizedPath = normalizeStoragePath(storagePath);
 	const choice = await ctx.ui.select(
 		[
 			`Review sync setup “${safeTerminalText(partial.setupName)}”`,
@@ -835,152 +858,4 @@ async function showRemoveTarget(ctx: ExtensionCommandContext, name: string, sign
 
 async function refreshTargetCompletions() {
 	setSyncSetupCompletions(await configuredSyncSetupNames());
-}
-
-interface ChosenRemoteLocation {
-	connectionName: string;
-	bucket: string;
-	path: string;
-}
-
-async function chooseInitialRemoteLocation(
-	ctx: ExtensionCommandContext,
-	preset: string,
-	setupName: string,
-	signal?: AbortSignal,
-): Promise<ChosenRemoteLocation | undefined> {
-	const connectionName = preset === "Cloudflare R2" ? "r2" : "s3";
-	const suggested = {
-		connectionName,
-		bucket: "pi-sync",
-		path: `pi-sync/${setupName}`,
-	};
-	if (preset === "Cloudflare R2") {
-		const choice = await ctx.ui.select(
-			[
-				"Choose storage location",
-				"",
-				`Suggested storage connection: ${connectionName}`,
-				`Suggested bucket: ${suggested.bucket}`,
-				`Remote path: ${safeTerminalText(suggested.path)}`,
-				"Bucket must already exist. pi-sync will not create it.",
-			].join("\n"),
-			["Use suggested location (recommended)", "Customize remote location", "Cancel"],
-			{ signal },
-		);
-		if (!choice || choice === "Cancel") return undefined;
-		if (choice === "Use suggested location (recommended)") return suggested;
-		return chooseCustomRemoteLocation(ctx, setupName, connectionName, true, signal);
-	}
-
-	const choice = await ctx.ui.select(
-		[
-			"Choose storage location",
-			"",
-			`Suggested storage connection: ${connectionName}`,
-			`Suggested path: ${safeTerminalText(suggested.path)}`,
-			"S3 bucket names may need to be globally unique and the bucket must already exist.",
-		].join("\n"),
-		[
-			"Use existing bucket with suggested path (recommended)",
-			"Customize remote location",
-			"Cancel",
-		],
-		{ signal },
-	);
-	if (!choice || choice === "Cancel") return undefined;
-	if (choice === "Customize remote location") {
-		return chooseCustomRemoteLocation(ctx, setupName, connectionName, true, signal);
-	}
-	const bucket = await requiredExistingBucket(ctx, "pi-sync-your-name", signal);
-	return bucket ? { ...suggested, bucket } : undefined;
-}
-
-async function chooseAdditionalRemoteLocation(
-	ctx: ExtensionCommandContext,
-	settings: Record<string, unknown>,
-	connectionName: string,
-	setupName: string,
-	signal?: AbortSignal,
-): Promise<Omit<ChosenRemoteLocation, "connectionName"> | undefined> {
-	const setups = ownRecord(settings.syncSetups) ?? {};
-	const currentSetup =
-		typeof settings.activeSyncSetup === "string" ? settings.activeSyncSetup : undefined;
-	const candidates = Object.entries(setups)
-		.map(([name, value]) => ({ name, storage: ownRecord(ownRecord(value)?.storage) }))
-		.filter(
-			(item): item is { name: string; storage: Record<string, unknown> } =>
-				item.storage?.connection === connectionName && typeof item.storage.bucket === "string",
-		);
-	const source =
-		candidates.find((item) => item.name === currentSetup) ??
-		candidates.sort((left, right) => left.name.localeCompare(right.name))[0];
-	if (source) {
-		const sourcePath =
-			typeof source.storage.path === "string" ? source.storage.path : "pi-sync/home";
-		const sourceParent = sourcePath.includes("/")
-			? sourcePath.slice(0, sourcePath.lastIndexOf("/"))
-			: "pi-sync";
-		const suggestedPath = `${sourceParent}/${setupName}`;
-		const sameBucketLabel = `Same bucket as “${safeTerminalText(source.name)}” (recommended)`;
-		const choice = await ctx.ui.select(
-			[
-				`Storage location for “${safeTerminalText(setupName)}”`,
-				"",
-				`Recommended bucket: ${safeTerminalText(String(source.storage.bucket))}`,
-				`Remote path: ${safeTerminalText(suggestedPath)}`,
-				"The complete path and local sync state remain separate.",
-			].join("\n"),
-			[sameBucketLabel, "Use a different bucket", "Customize remote location", "Cancel"],
-			{ signal },
-		);
-		if (!choice || choice === "Cancel") return undefined;
-		if (choice === sameBucketLabel) {
-			return { bucket: String(source.storage.bucket), path: suggestedPath };
-		}
-		if (choice === "Use a different bucket") {
-			const bucket = await requiredExistingBucket(ctx, "pi-sync", signal);
-			return bucket ? { bucket, path: `pi-sync/${setupName}` } : undefined;
-		}
-		const custom = await chooseCustomRemoteLocation(ctx, setupName, connectionName, false, signal);
-		return custom ? { bucket: custom.bucket, path: custom.path } : undefined;
-	}
-
-	const connectionSettings = ownRecord(ownRecord(settings.storageConnections)?.[connectionName]);
-	const isR2 = isCloudflareR2Endpoint(String(connectionSettings?.endpoint ?? ""));
-	const suggestedPath = `pi-sync/${setupName}`;
-	const suggestedLabel = isR2
-		? "Use suggested location (recommended)"
-		: "Use existing bucket with suggested path (recommended)";
-	const choice = await ctx.ui.select(
-		`Storage location for “${safeTerminalText(setupName)}”\n\nSuggested path: ${safeTerminalText(suggestedPath)}`,
-		[suggestedLabel, "Customize remote location", "Cancel"],
-		{ signal },
-	);
-	if (!choice || choice === "Cancel") return undefined;
-	if (choice === "Customize remote location") {
-		const custom = await chooseCustomRemoteLocation(ctx, setupName, connectionName, false, signal);
-		return custom ? { bucket: custom.bucket, path: custom.path } : undefined;
-	}
-	if (isR2) return { bucket: "pi-sync", path: suggestedPath };
-	const bucket = await requiredExistingBucket(ctx, "pi-sync-your-name", signal);
-	return bucket ? { bucket, path: suggestedPath } : undefined;
-}
-
-async function chooseCustomRemoteLocation(
-	ctx: ExtensionCommandContext,
-	setupName: string,
-	initialConnectionName: string,
-	customizeConnectionName: boolean,
-	signal?: AbortSignal,
-): Promise<ChosenRemoteLocation | undefined> {
-	const connectionName = customizeConnectionName
-		? await requiredInput(ctx, "Storage connection name", initialConnectionName, signal)
-		: initialConnectionName;
-	if (!connectionName) return undefined;
-	const bucket = await requiredExistingBucket(ctx, "pi-sync", signal);
-	if (!bucket) return undefined;
-	const storagePath = await requiredInput(ctx, "Storage path", `pi-sync/${setupName}`, signal);
-	if (!storagePath) return undefined;
-	return { connectionName, bucket, path: storagePath.replace(/^\/+|\/+$/gu, "") };
 }
