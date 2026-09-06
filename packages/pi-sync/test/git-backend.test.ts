@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
+	mkdtempSync,
 	readdirSync,
 	readFileSync,
 	renameSync,
@@ -111,6 +112,33 @@ test("Git backend publishes lease-protected commits and preserves repeated-conte
 			third.head.snapshotRef,
 		);
 	} finally {
+		rmSync(fixture.root, { recursive: true, force: true });
+	}
+});
+
+test("Git backend publishes and reads snapshots with a relative cache root", async () => {
+	const fixture = createBareRemote();
+	const cacheDirectory = mkdtempSync(
+		path.join(process.cwd(), "node_modules", ".pi-sync-relative-cache-"),
+	);
+	try {
+		const cacheRoot = path.relative(process.cwd(), path.join(cacheDirectory, "relative cache"));
+		assert.equal(path.isAbsolute(cacheRoot), false);
+		const backend = new GitSyncBackend(gitConfig(fixture.remote), {
+			cacheRoot,
+			allowLocalRemotes: true,
+		});
+		const content = snapshot([{ path: "settings.json", content: Buffer.from("relative") }]);
+		const publication = await backend.publishSnapshot(content, { kind: "missing" });
+		assert.deepEqual(await backend.readHead(), publication.head);
+		assert.deepEqual(await backend.readSnapshot(publication.head.snapshotRef), content);
+		const identityDirectory = path.join(
+			cacheRoot,
+			gitBackendIdentity(gitConfig(fixture.remote)).slice("git:".length),
+		);
+		assert.deepEqual(readdirSync(identityDirectory), ["repository.git"]);
+	} finally {
+		rmSync(cacheDirectory, { recursive: true, force: true });
 		rmSync(fixture.root, { recursive: true, force: true });
 	}
 });

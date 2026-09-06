@@ -74,7 +74,7 @@ export class GitSyncBackend implements SyncBackend {
 		if (!this.allowLocalRemotes) assertProductionRemote(config.profile.remote);
 		this.identity = gitBackendIdentity(config);
 		this.destination = gitDestination(config);
-		this.cacheRoot = options.cacheRoot ?? path.join(stateDir(), "git");
+		this.cacheRoot = path.resolve(options.cacheRoot ?? path.join(stateDir(), "git"));
 		this.cacheDir = path.join(this.cacheRoot, this.identity.slice("git:".length), "repository.git");
 		this.commandTimeoutMs = options.commandTimeoutMs ?? COMMAND_TIMEOUT_MS;
 		this.postCommitTimeoutMs = options.postCommitTimeoutMs ?? POST_COMMIT_TIMEOUT_MS;
