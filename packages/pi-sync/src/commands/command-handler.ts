@@ -1,11 +1,13 @@
 import type { ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { loadConfig } from "../settings/config.js";
+import { readStateForConfig, syncStateFingerprint } from "../state/sync-state-store.js";
 import { combineSignals } from "../sync/signals.js";
 import { errorMessage } from "../sync/sync-errors.js";
 import type { SyncLoaders } from "../sync/sync-loaders.js";
 import { formatRemoteSelectionMismatch } from "../sync/sync-policy.js";
 import type { RunRouteResult } from "../ui/cancellable-operation.js";
 import {
+	observationMatchesConfig,
 	type SyncAttentionController,
 	type SyncAttentionOrigin,
 	syncAttentionMatchesConfig,
@@ -22,38 +24,39 @@ export async function handleCommand(
 	loaders: SyncLoaders,
 	attention: SyncAttentionController,
 ) {
+	await reconcileObservation(attention, sessionSignal);
+	if (sessionSignal.aborted) return;
+	const run = (route: string, signal?: AbortSignal, onCommit?: () => void, target?: string) =>
+		executeCommand(
+			route,
+			ctx,
+			combineSignals(sessionSignal, signal),
+			loaders,
+			observationCommitCallback(attention, sessionSignal, onCommit),
+			target,
+		);
 	if (!rawArgs.trim()) {
 		try {
 			const { showSyncManager } = await import("../ui/manager-ui.js");
 			if (sessionSignal.aborted) return;
-			await showSyncManager(
-				ctx,
-				(route, signal, onCommit, target) =>
-					executeCommand(
-						route,
-						ctx,
-						combineSignals(sessionSignal, signal),
-						loaders,
-						onCommit,
-						target,
-					),
-				sessionSignal,
-				{
-					getAttention: () => attention.current(),
-					onSelectionResolved: (expected) => {
-						if (attention.current() === expected) attention.clear(ctx);
-					},
+			await showSyncManager(ctx, run, sessionSignal, {
+				getAttention: () => attention.current(),
+				getObservation: () => attention.observation(),
+				onObservationInvalidated: () => attention.clearObservation(),
+				onSelectionResolved: (expected) => {
+					if (attention.current() === expected) attention.clear(ctx);
 				},
-			);
+			});
 		} catch (error) {
 			if (sessionSignal.aborted) return;
 			ctx.ui.setStatus(STATUS_KEY, undefined);
 			ctx.ui.notify(errorMessage(error), "error");
 		}
+		await reconcileObservation(attention, sessionSignal);
 		if (!sessionSignal.aborted) attention.publish(ctx);
 		return;
 	}
-	const result = await executeCommand(rawArgs, ctx, sessionSignal, loaders);
+	const result = await run(rawArgs);
 	if (result.kind === "decision-required") {
 		ctx.ui.notify(result.decision.directMessage, "error");
 	} else if (result.kind === "remote-selection-required") {
@@ -75,7 +78,42 @@ export async function handleCommand(
 	}
 	await clearAttentionAfterCompletedOperation(rawArgs, result, ctx, attention, sessionSignal);
 	await reconcileSelectionAttention(ctx, attention, sessionSignal);
+	await reconcileObservation(attention, sessionSignal);
 	if (!sessionSignal.aborted) attention.publish(ctx);
+}
+
+function observationCommitCallback(
+	attention: SyncAttentionController,
+	sessionSignal: AbortSignal,
+	onCommit?: () => void,
+) {
+	const observed = attention.observation();
+	return () => {
+		// Opening or cancelling a review changes nothing. A commit may change data
+		// even if later publication/baseline cleanup fails; never restore old hints.
+		if (!sessionSignal.aborted && attention.observation() === observed)
+			attention.clearObservation();
+		onCommit?.();
+	};
+}
+
+async function reconcileObservation(attention: SyncAttentionController, signal: AbortSignal) {
+	const observed = attention.observation();
+	if (!observed || signal.aborted) return;
+	try {
+		const config = await loadConfig();
+		if (signal.aborted || attention.observation() !== observed) return;
+		if (!observationMatchesConfig(observed, config)) {
+			attention.clearObservation();
+			return;
+		}
+		const state = await readStateForConfig(config);
+		if (signal.aborted || attention.observation() !== observed) return;
+		if (syncStateFingerprint(state) !== observed.inspection.stateIdentity)
+			attention.clearObservation();
+	} catch {
+		if (!signal.aborted && attention.observation() === observed) attention.clearObservation();
+	}
 }
 
 async function clearAttentionAfterCompletedOperation(
@@ -146,7 +184,7 @@ export async function resolveSelectionAttention(
 					ctx,
 					combineSignals(signal, actionSignal),
 					loaders,
-					onCommit,
+					observationCommitCallback(attention, signal, onCommit),
 					target,
 				);
 			return options.withStateAccess ? options.withStateAccess(execute) : execute();

@@ -1,11 +1,14 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { ActionMenuItem } from "@narumitw/pi-tui-kit";
+import type { StartupObservation } from "../sync/sync-inspection.js";
 import type { RunRoute } from "./cancellable-operation.js";
 import { dispatchManagerResult } from "./manager-result-dispatcher.js";
 import type { ManagerDescription } from "./manager-state.js";
 import type { SyncAttentionState } from "./sync-attention.js";
 
 export interface SyncManagerAttentionOptions {
+	getObservation?: () => StartupObservation | undefined;
+	onObservationInvalidated?: () => void;
 	getAttention?: () => SyncAttentionState | undefined;
 	onSelectionResolved?: (expected: SyncAttentionState) => void;
 }
@@ -13,7 +16,8 @@ export interface SyncManagerAttentionOptions {
 export function attentionMainMenuItems(
 	manager: ManagerDescription,
 ): ActionMenuItem<"main" | "more" | "recovery", "review-attention">[] {
-	if (!manager.attention) return [];
+	if (!manager.attention && manager.observation?.inspection.selectionState?.kind !== "different")
+		return [];
 	const disabled = manager.attentionReviewDisabled === true;
 	return [
 		{

@@ -7,11 +7,13 @@ import {
 } from "../backends/git/git-config.js";
 import { normalizeWebDavPath, normalizeWebDavUrl } from "../backends/webdav/webdav-config.js";
 import { normalizeSyncInclude } from "../sync/sync-policy.js";
+import { localConfigPath, readActiveLocalConfigDocumentForRepair } from "./config-file.js";
 import { requireSettings } from "./settings-store.js";
 import type {
 	AnySyncConfig,
 	OnSwitchAction,
 	PartialConfig,
+	PiSyncSettingsV3,
 	StorageConnectionSettings,
 	SyncSetupSettings,
 } from "./settings-types.js";
@@ -25,10 +27,22 @@ import {
 	ownObject,
 	requiredString,
 	validateConfigName,
+	validateSettingsDocument,
 } from "./settings-validation.js";
 
 export async function loadConfig(setupName?: string): Promise<AnySyncConfig> {
-	const settings = await requireSettings();
+	return configFromSettings(await requireSettings(), setupName);
+}
+
+/** A background freshness read must never trigger legacy-file publication. */
+export async function loadConfigForCheck(): Promise<AnySyncConfig> {
+	const document = await readActiveLocalConfigDocumentForRepair();
+	if (!document) throw new Error(`Missing pi-sync settings: ${localConfigPath()}`);
+	validateSettingsDocument(document.parsed);
+	return configFromSettings(document.parsed as PiSyncSettingsV3);
+}
+
+function configFromSettings(settings: PiSyncSettingsV3, setupName?: string): AnySyncConfig {
 	const selectedName = setupName ?? settings.activeSyncSetup;
 	if (!selectedName) throw new Error("No sync setups are configured.");
 	validateConfigName(selectedName, "sync setup");
@@ -106,6 +120,11 @@ export function syncConfigReviewIdentity(config: AnySyncConfig) {
 
 export function syncConfigReviewFingerprint(config: AnySyncConfig) {
 	return createHash("sha256").update(syncConfigReviewIdentity(config)).digest("hex");
+}
+
+/** Internal freshness token, including credentials; never display or persist it. */
+export function syncCheckConfigFingerprint(config: AnySyncConfig) {
+	return createHash("sha256").update(JSON.stringify(config)).digest("hex");
 }
 
 function storageReviewFromConfig(config: AnySyncConfig): SyncSetupStorageReview {

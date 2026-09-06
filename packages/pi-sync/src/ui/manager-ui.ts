@@ -1,7 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { type ActionMenuItem, defineMenu, runMenu } from "@narumitw/pi-tui-kit";
 import { loadConfig } from "../settings/config.js";
-import { operationCanRecover } from "../state/operation-availability.js";
+import { operationBlocksChanges, operationCanRecover } from "../state/operation-availability.js";
 import { type RunRoute, runCancellableOperation } from "./cancellable-operation.js";
 import {
 	attentionMainMenuItems,
@@ -16,6 +16,7 @@ import { showSyncSettings } from "./settings-ui.js";
 import { showSyncSetupManager } from "./setup/setup-actions.js";
 import { showSetupSwitcher } from "./setup/setup-switcher.js";
 import { showStorageConnections } from "./storage-connections-ui.js";
+import { observationMatchesConfig } from "./sync-attention.js";
 
 export async function showSyncManager(
 	ctx: ExtensionCommandContext,
@@ -116,7 +117,44 @@ export async function showSyncManager(
 		actions: {
 			"review-attention": async () => {
 				const attention = options.getAttention?.();
-				if (!attention) return { kind: "stay" };
+				if (!attention) {
+					const observation = options.getObservation?.();
+					if (!observation) return { kind: "stay" };
+					// A head-only observation is not an authoritative decision. Load a fresh
+					// snapshot only after the user activates the existing review flow.
+					const { showRemoteSelectionReview } = await import("./remote-selection-ui.js");
+					if (sessionSignal?.aborted) return { kind: "close" };
+					const config = await loadConfig();
+					if (sessionSignal?.aborted) return { kind: "close" };
+					if (
+						options.getObservation?.() !== observation ||
+						!observationMatchesConfig(observation, config)
+					) {
+						options.onObservationInvalidated?.();
+						return { kind: "stay" };
+					}
+					// Keep the check-time hint on cancellation or failure. Route commits and
+					// the manager's config/baseline reconciliation own invalidation.
+					const result = await showRemoteSelectionReview(
+						ctx,
+						observation.setupName,
+						sessionSignal,
+						undefined,
+						{
+							origin: "sync",
+							runRoute,
+							onSelectionResolved: () => {
+								if (!sessionSignal?.aborted && options.getObservation?.() === observation)
+									options.onObservationInvalidated?.();
+							},
+						},
+					);
+					if (sessionSignal?.aborted) return { kind: "close" };
+					if (result.kind === "route-result") {
+						return dispatchManagerResult(ctx, result.result, result.route, runRoute, sessionSignal);
+					}
+					return { kind: result.kind === "closed" || result.kind === "stale" ? "close" : "stay" };
+				}
 				const disposition = await showManagerAttention(
 					ctx,
 					attention,
@@ -275,7 +313,23 @@ export async function showSyncManager(
 	await runMenu(ctx, menu, {
 		getState: async () => {
 			const pendingAttention = options.getAttention?.();
-			const manager = await describeManagerState(sessionSignal, pendingAttention);
+			const observation = options.getObservation?.();
+			const manager = await describeManagerState(
+				sessionSignal,
+				pendingAttention,
+				undefined,
+				observation,
+			);
+			if (sessionSignal?.aborted) return { manager };
+			// A busy operation suppresses baseline reads, not the stored check-time hint.
+			if (
+				observation &&
+				options.getObservation?.() === observation &&
+				!manager.observation &&
+				!(manager.operation && operationBlocksChanges(manager.operation))
+			) {
+				options.onObservationInvalidated?.();
+			}
 			if (pendingAttention && options.getAttention?.() === pendingAttention && !manager.attention) {
 				options.onSelectionResolved?.(pendingAttention);
 			}

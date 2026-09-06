@@ -10,10 +10,10 @@ import { recoverSnapshotTransactionsOnStartup } from "../snapshot/snapshot-trans
 import { withLock } from "../state/lock.js";
 import { stateDirectoryMigrationNotice } from "../state/state-directory.js";
 import { ensureStateDir, readStateForConfig } from "../state/sync-state-store.js";
+import { safeTerminalText } from "../ui/terminal-text.js";
 import { throwIfAborted } from "./signals.js";
 import { errorMessage } from "./sync-errors.js";
 import type { SyncLoaders } from "./sync-loaders.js";
-import { type RemoteSelectionDecision, RemoteSelectionMismatchError } from "./sync-policy.js";
 
 const AUTO_SYNC_OPTIONS: CommandOptions = {
 	yes: true,
@@ -27,64 +27,38 @@ const AUTO_SYNC_OPTIONS: CommandOptions = {
 
 const STATUS_KEY = "sync";
 
-export async function startSession(
-	ctx: ExtensionContext,
-	signal: AbortSignal,
-	loaders: SyncLoaders,
-) {
-	if (signal.aborted) return;
+export async function startSession(ctx: ExtensionContext, signal: AbortSignal) {
+	throwIfAborted(signal);
+	const stateNotice = stateDirectoryMigrationNotice();
+	if (stateNotice && ctx.hasUI) ctx.ui.notify(stateNotice, "warning");
+	// Recovery can restore managed files: finish it before Pi accepts user edits.
+	// Unlike remote inspection, it must never be detached behind startup.
+	await recoverSnapshotTransactionsOnStartup();
+	throwIfAborted(signal);
 	try {
-		const migrationNotice = stateDirectoryMigrationNotice();
-		if (migrationNotice) ctx.ui.notify(migrationNotice, "warning");
-	} catch (error) {
-		ctx.ui.notify(`pi-sync state directory requires attention: ${errorMessage(error)}`, "error");
-		return;
-	}
-	try {
-		await recoverSnapshotTransactionsOnStartup();
-		if (signal.aborted) return;
-	} catch (error) {
-		if (signal.aborted) return;
-		ctx.ui.notify(`pi-sync recovery required: ${errorMessage(error)}`, "error");
-		return;
-	}
-	try {
-		setSyncSetupCompletions(await configuredSyncSetupNames());
-		if (signal.aborted) return;
+		const names = await configuredSyncSetupNames();
+		throwIfAborted(signal);
+		setSyncSetupCompletions(names);
 	} catch {
 		if (signal.aborted) return;
 		setSyncSetupCompletions([]);
 	}
 	const migrationNotice = consumeLocalConfigMigrationNotice();
-	if (migrationNotice) ctx.ui.notify(migrationNotice, "warning");
-	if (signal.aborted) return;
-	return autoSync(ctx, signal, loaders);
-}
-
-async function autoSync(
-	ctx: ExtensionContext,
-	signal: AbortSignal,
-	loaders: SyncLoaders,
-): Promise<RemoteSelectionDecision | undefined> {
+	if (migrationNotice && ctx.hasUI) ctx.ui.notify(migrationNotice, "warning");
+	throwIfAborted(signal);
+	if (!ctx.hasUI) return;
 	try {
-		const partial = await loadPartialConfig();
+		const config = await loadConfig();
 		throwIfAborted(signal);
-		if (!partial.automatic) return;
-		await ensureStateDir();
-		throwIfAborted(signal);
-		await loadConfig();
-		throwIfAborted(signal);
-		const operations = await loaders.operations();
-		throwIfAborted(signal);
-		await withLock("auto-sync", () => {
-			throwIfAborted(signal);
-			return operations.syncBoth(ctx, { ...AUTO_SYNC_OPTIONS, signal });
-		});
+		return config.automatic ? config : undefined;
 	} catch (error) {
-		if (signal.aborted || isMissingConfigError(error)) return;
-		ctx.ui.setStatus(STATUS_KEY, undefined);
-		if (error instanceof RemoteSelectionMismatchError) return error.decision;
-		ctx.ui.notify(`pi-sync auto sync skipped: ${errorMessage(error)}`, "warning");
+		throwIfAborted(signal);
+		if (!isMissingConfigError(error)) {
+			ctx.ui.notify(
+				`pi-sync startup check skipped: ${safeTerminalText(errorMessage(error))}`,
+				"warning",
+			);
+		}
 	}
 }
 
@@ -113,10 +87,10 @@ export async function autoPushSessions(
 			throwIfAborted(signal);
 			const state = await readStateForConfig(config);
 			throwIfAborted(signal);
-			const local = await snapshotModule.createSnapshot(
-				config.snapshotIdentity,
-				snapshotOptionsForContext(ctx, config),
-			);
+			const local = await snapshotModule.createSnapshot(config.snapshotIdentity, {
+				...snapshotOptionsForContext(ctx, config),
+				signal,
+			});
 			throwIfAborted(signal);
 			if (!syncStateModule.hasLocalChanges(local, state, config)) return;
 			await operations.push(ctx, { ...AUTO_SYNC_OPTIONS, signal }, { config, state, local });

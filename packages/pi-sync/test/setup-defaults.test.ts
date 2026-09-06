@@ -112,7 +112,12 @@ for (const fixture of fixtures) {
 				const config = await loadConfig();
 				assert.equal(config.automatic, automatic);
 				assert.equal(config.include.includes("sessions"), false);
-				assert.match(frames.join("\n"), automatic ? /Automatic sync: On/u : /Automatic sync: Off/u);
+				assert.match(
+					frames.join("\n"),
+					automatic
+						? /Automatic sync: On \(startup check; shutdown pushes selected content if sessions included\)/u
+						: /Automatic sync: Off/u,
+				);
 				const expected =
 					fixture.preset === "Git"
 						? [

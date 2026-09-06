@@ -562,12 +562,14 @@ export class GitSyncBackend implements SyncBackend {
 				try {
 					recreate = !(await this.cacheUsesSha1(signal));
 				} catch {
+					throwIfAborted(signal);
 					recreate = true;
 				}
 			}
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
 		}
+		throwIfAborted(signal);
 		if (recreate) await fs.rm(this.cacheDir, { recursive: true, force: true });
 		try {
 			await fs.access(this.cacheDir);
@@ -781,10 +783,12 @@ async function withGitCacheMutation<T>(
 	signal?: AbortSignal,
 ): Promise<T> {
 	const previous = gitCacheMutationQueues.get(cacheDir) ?? Promise.resolve();
+	let started = false;
 	const operation = previous
 		.catch(() => undefined)
 		.then(() => {
 			throwIfAborted(signal);
+			started = true;
 			return run();
 		});
 	const tail = operation.then(
@@ -806,6 +810,11 @@ async function withGitCacheMutation<T>(
 	if (signal.aborted) onAbort();
 	try {
 		return await Promise.race([operation, aborted]);
+	} catch (error) {
+		// A queued job can cancel immediately, but a running job owns a child/cache
+		// mutation. Drain its bounded cleanup before releasing outer sync guards.
+		if (started) await tail;
+		throw error;
 	} finally {
 		signal.removeEventListener("abort", onAbort);
 	}

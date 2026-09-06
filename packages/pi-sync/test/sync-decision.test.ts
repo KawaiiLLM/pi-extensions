@@ -305,7 +305,7 @@ test("first sync reports different sessions as an initial-source decision", asyn
 	});
 });
 
-test("automatic sync reports a directional conflict without opening recovery UI", async () => {
+test("startup check reports missing baseline without predicting a directional conflict", async () => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
 		writeFileSync(localConfigPath(), JSON.stringify(v3S3Settings({ automatic: true })), {
@@ -338,21 +338,25 @@ test("automatic sync reports a directional conflict without opening recovery UI"
 		sync(mock.pi);
 		const { ctx, notifications } = createMockContext({
 			hasUI: true,
-			mode: "tui",
+			mode: "rpc",
 			custom: async () => {
 				customCalls += 1;
 				return undefined;
 			},
 		});
+		const { observeCheckCompletion } = await import("./startup-check-helpers.js");
+		const completion = observeCheckCompletion(ctx);
 		try {
 			await mock.events.get("session_start")?.[0]?.({}, ctx);
+			await completion.completed;
+			await mock.events.get("session_shutdown")?.[0]?.({ reason: "reload" }, ctx);
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
 		assert.equal(customCalls, 0);
 		assert.match(
 			notifications.at(-1)?.message ?? "",
-			/pi-sync auto sync skipped: Remote settings exist.*different local Pi settings/u,
+			/No sync baseline; review remote and local content/u,
 		);
 		assert.equal(readFileSync(path.join(agentDir, "settings.json"), "utf8"), '{"local":true}\n');
 	});

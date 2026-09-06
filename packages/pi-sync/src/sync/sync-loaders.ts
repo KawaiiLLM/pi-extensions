@@ -3,7 +3,10 @@ type SnapshotModule = Pick<typeof import("../snapshot/snapshot.js"), "createSnap
 type SyncStateModule = Pick<typeof import("./sync-state.js"), "hasLocalChanges">;
 type SyncOperations = typeof import("./sync-operations.js");
 
+type SyncInspectionModule = Pick<typeof import("./sync-inspection.js"), "inspectSync">;
+
 export interface SyncDependencies {
+	loadSyncInspection(): Promise<SyncInspectionModule>;
 	loadSetupSwitch(): Promise<SetupSwitchModule>;
 	loadSnapshot(): Promise<SnapshotModule>;
 	loadSyncState(): Promise<SyncStateModule>;
@@ -11,6 +14,7 @@ export interface SyncDependencies {
 }
 
 export interface SyncLoaders {
+	inspection(): Promise<SyncInspectionModule>;
 	setupSwitch(): Promise<SetupSwitchModule>;
 	snapshot(): Promise<SnapshotModule>;
 	syncState(): Promise<SyncStateModule>;
@@ -19,6 +23,9 @@ export interface SyncLoaders {
 
 export function createSyncLoaders(dependencies: Partial<SyncDependencies>): SyncLoaders {
 	const loaders: SyncLoaders = {
+		inspection: cachedModuleLoader(
+			dependencies.loadSyncInspection ?? (() => import("./sync-inspection.js")),
+		),
 		setupSwitch: cachedModuleLoader(
 			dependencies.loadSetupSwitch ?? (() => import("./setup-switch.js")),
 		),

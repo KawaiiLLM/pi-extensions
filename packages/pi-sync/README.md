@@ -67,7 +67,7 @@ The `/sync` manager shows local state without contacting remote storage:
 Current sync setup: home
 Storage: Cloudflare R2 · r2 · personal-pi
 Included: 5 built-in groups · 0 extra files · Sessions off
-Automatic sync: On
+Automatic sync: On (startup check; shutdown pushes selected content if sessions included)
 Remote status: Not checked
 ```
 
@@ -117,7 +117,6 @@ Then choose one action:
 - **Keep this device's content list and update remote…** opens the existing `push --force` preparation and exact confirmation without `--yes`.
   Cancelling preparation or confirmation returns to the content-list choice without changing remote data.
 - **Cancel** returns to the manager without changing settings, files, remote data, or sync state.
-- **Later** appears when automatic startup sync detected the mismatch and returns immediately to the Pi editor without changing anything.
 
 Choose **Review differences (recommended)** in an ordinary file-direction conflict to inspect the exact affected paths without changing local files, remote data, or sync state.
 Then choose one reviewed direction:
@@ -132,15 +131,14 @@ Then choose one reviewed direction:
 Cancelling a preparation or confirmation returns to conflict resolution with no side effects.
 Back returns to the sync manager, and Ctrl+C closes the complete flow.
 
-When automatic startup sync detects an explicit content-list mismatch in TUI mode, it opens **Synced content differs** once for that session instead of ending at a warning.
-Choosing **Later** or closing the flow leaves a compact **Pi Sync needs review** widget above the editor and a **review needed** footer status.
-The attention state is in memory only, contains no credentials or file contents, and is revalidated before any settings or remote mutation.
-It clears after verified resolution, invalidation, session replacement, or shutdown.
+Startup checks never open a dialog. Detected changes leave a compact hint above the editor; open `/sync` when ready. An included-content mismatch puts **Review synced content (recommended)** in the manager, where a fresh review verifies the remote snapshot before offering changes.
+Check results are advisory observations against the last sync baseline, not proof of a file conflict or current equality. Opening the manager uses local information and shows when the check completed; it does not contact remote storage. Transfer actions recheck current content.
+Attention stays in memory and is invalidated by relevant settings/state changes or a foreground transfer's commit boundary, and cleared on session replacement or shutdown. Cancelling a review or a failure before commit preserves a still-valid hint.
 
 Interactive TUI `/sync sync`, `/sync pull`, and `/sync push` routes without `--yes` open the same review flow when they detect the mismatch.
 Explicit `--yes` routes remain non-interactive and report exact remote-only, device-only, or order-only guidance while leaving visible attention for later review.
 Shutdown automatic sync never opens a dialog because Pi is exiting.
-RPC startup mismatch review remains read-only and notification-based.
+RPC startup check results use nonblocking notifications; included-content review remains read-only.
 Print and JSON modes do not support `/sync` because UI output is not observable there.
 
 ## ⚙️ Settings
@@ -148,7 +146,16 @@ Print and JSON modes do not support `/sync` because UI output is not observable 
 Run `/sync` → **Set up sync** to create the canonical private user file at `<getAgentDir()>/pi-sync.json` (normally `~/.pi/agent/pi-sync.json`).
 Use **Settings** to manage an existing setup.
 Missing settings stay unconfigured without creating files or locks.
-Automatic sync runs for the current setup when a Pi session starts. At shutdown, it pushes changes only when sessions are included; it never opens a shutdown dialog.
+
+### Background startup checks
+
+With **Automatic sync** enabled, session startup schedules a background check instead of waiting for a transfer. Pi remains usable while Git, WebDAV, R2, or S3 checks local hashes and remote metadata. Unchanged results are quiet; changes or failures provide `/sync` guidance without opening a dialog. Use **Sync now** to start a reviewed transfer, or `/sync status` to retry a check. Foreground `/sync` cancels and drains the background check before starting.
+
+Checks run once per session start, including `/reload`, new, resumed, and forked sessions, in TUI and RPC only. Print/JSON skip startup checks. There is no polling or automatic check retry loop. The overall deadline is 30 seconds, followed by underlying cleanup where needed; Git process termination and temporary-ref cleanup can take additional time. Git checks can still fetch objects and update the extension's private bare cache, but never push, apply managed files, update the sync baseline, or reload Pi.
+
+**Compatibility change:** the existing `sync.automatic` boolean and Off default are unchanged, but On no longer performs startup push/pull. Startup is not guaranteed to use the latest remote content. Local transaction recovery remains an awaited safety barrier and can restore interrupted file changes before use; existing legacy settings-file initialization is also retained.
+
+Shutdown behavior is unchanged: when **Automatic sync** is On and sessions are included, pi-sync can automatically push the selected content, not only session files. This also applies to headless modes; shutdown never opens a dialog, and `/reload` skips this push. Turning the setting Off disables both future startup checks and automatic shutdown pushes.
 
 **Settings → Skip secret scan (all setups)** defaults to **Off**; enable it only after reviewing the destination and selected content because it disables push scanning for every setup.
 See [Secret scanning](./docs/settings.md#secret-scanning) for the setting and diagnostic behavior.
@@ -189,7 +196,7 @@ Malformed, invalid, unsupported, symlinked, or concurrently changed documents re
 Version 1, version 2, and non-empty unversioned settings require manual recovery rather than automatic migration.
 
 Adding `sessions` can upload prompts, tool output, paths, images, and secrets; interactive flows require a privacy acknowledgement.
-Automatic sync and pull pause when the remote included-content policy differs instead of silently expanding local scope.
+Startup checks report included-content differences without changing anything. Transfers retain their existing included-content policy checks instead of silently expanding local scope.
 
 Read the [settings reference](./docs/settings.md) for complete S3/R2, Git, and WebDAV examples, backend fields, included-content rules, legacy paths, and recovery steps.
 
@@ -273,7 +280,7 @@ Preserve both roots before manual recovery; with every Pi process closed and no 
 
 Pi exposes terminal components rather than a semantic or ARIA tree.
 Release checks cover textual state, keyboard operation, Escape and Back behavior, control escaping, and narrow rendering.
-Critical meaning appears in text such as `(current)`, `Review needed`, `Later`, `Warning`, `Invalid`, `Saved`, `Cancelled`, and `Applied`.
+Critical meaning appears in text such as `(current)`, `Review needed`, `No startup transfer`, `Warning`, `Invalid`, `Saved`, `Cancelled`, and `Applied`.
 Color is supplementary, and the attention widget is informational rather than interactive.
 
 ## 🗂️ Package layout

@@ -11,6 +11,7 @@ import {
 	normalizeS3Endpoint,
 	normalizeStoragePath,
 } from "../../settings/settings-validation.js";
+import { automaticSyncSummary } from "../automatic-sync-summary.js";
 import { safeTerminalText } from "../terminal-text.js";
 import { chooseS3Credentials } from "./s3-credentials-ui.js";
 import {
@@ -77,7 +78,7 @@ export async function showS3Setup(
 			`Bucket: ${safeTerminalText(location.bucket)}`,
 			`Storage location: ${safeTerminalText(location.path)}`,
 			...includedContentLines(include, sessions),
-			`Automatic sync: ${automatic ? "On" : "Off"}`,
+			`Automatic sync: ${automaticSyncSummary(automatic)}`,
 			`Credentials: ${credentials.summary}`,
 			"The bucket must already exist. Saving does not contact remote storage or start syncing.",
 		],
@@ -150,8 +151,8 @@ export async function showAddS3Target(
 			`Bucket: ${safeTerminalText(storage.bucket)}`,
 			`Storage location: ${safeTerminalText(storage.path)}`,
 			...includedContentLines(include),
-			`Automatic sync: ${automatic ? "On" : "Off"}`,
-			"Only the current setup syncs automatically. Setups can share local content.",
+			`Automatic sync: ${automaticSyncSummary(automatic)}`,
+			"Only the current setup is checked at startup. Shutdown can push selected content when sessions are included.",
 			"The bucket must already exist. Adding this setup does not sync or modify remote data.",
 		],
 		"Add sync setup",

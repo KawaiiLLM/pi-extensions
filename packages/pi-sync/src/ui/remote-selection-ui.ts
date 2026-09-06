@@ -35,6 +35,7 @@ export interface RemoteSelectionReviewOptions {
 	origin?: RemoteSelectionOrigin;
 	runRoute?: RunRoute;
 	cancelLabel?: string;
+	/** The explicit mismatch is resolved or superseded; this does not imply file equality. */
 	onSelectionResolved?: () => void;
 	withStateAccess?: <T>(task: () => Promise<T>) => Promise<T>;
 }
@@ -58,6 +59,11 @@ export async function showRemoteSelectionReview(
 		if (!decision) {
 			const inspected = await inspectConfiguredRemoteSelection(ctx, setupName, signal, factory);
 			if (!inspected || signal?.aborted) return { kind: "stale" };
+			// A successful fresh read can supersede an old explicit mismatch without
+			// changing local settings. This is not user cancellation or proof of file equality.
+			if (inspected.kind === "empty" || inspected.state.kind !== "different") {
+				options.onSelectionResolved?.();
+			}
 			if (inspected.kind === "empty") {
 				ctx.ui.notify("Remote storage has no snapshot or synced-content list yet.", "info");
 				return { kind: "back" };
@@ -100,6 +106,7 @@ export async function showRemoteSelectionReview(
 			);
 			if (!refreshed || signal?.aborted) return { kind: "stale" };
 			if (refreshed.kind === "empty") {
+				options.onSelectionResolved?.();
 				ctx.ui.notify("Remote storage no longer has a snapshot or synced-content list.", "warning");
 				return { kind: "back" };
 			}
