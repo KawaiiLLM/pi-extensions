@@ -43,15 +43,15 @@ test("Sync setup switching loads only for the use route and caches the module", 
 			},
 			loadSnapshot: async () => {
 				snapshotLoads += 1;
-				return import("../src/snapshot.js");
+				return import("../src/snapshot/snapshot.js");
 			},
 			loadSyncState: async () => {
 				stateLoads += 1;
-				return import("../src/sync-state.js");
+				return import("../src/sync/sync-state.js");
 			},
 			loadSyncOperations: async () => {
 				operationLoads += 1;
-				return import("../src/sync-operations.js");
+				return import("../src/sync/sync-operations.js");
 			},
 		});
 		const context = createMockContext({ hasUI: true, mode: "rpc" });

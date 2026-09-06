@@ -3,9 +3,8 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
-import { localConfigPath } from "../src/config.js";
-import { GitSyncBackend } from "../src/git-backend.js";
-import syncExtension from "../src/sync.js";
+import { GitSyncBackend } from "../src/backends/git/git-backend.js";
+import { localConfigPath } from "../src/settings/config.js";
 import {
 	diff,
 	doctor,
@@ -15,7 +14,8 @@ import {
 	rollback,
 	status,
 	syncBoth,
-} from "../src/sync-operations.js";
+} from "../src/sync/sync-operations.js";
+import syncExtension from "../src/sync.js";
 import type { CommandOptions, ResolvedGitBackend } from "../src/types.js";
 import { createBareRemote } from "./git-test-helpers.js";
 import { withEnv, withTempHome } from "./helpers.js";

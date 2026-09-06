@@ -6,9 +6,9 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import { loadConfig, localConfigPath } from "../src/config.js";
-import { requiredInput, requiredValueInput } from "../src/manager-helpers.js";
-import { showSetupWizard } from "../src/manager-ui.js";
+import { loadConfig, localConfigPath } from "../src/settings/config.js";
+import { requiredInput, requiredValueInput } from "../src/ui/manager-helpers.js";
+import { showSetupWizard } from "../src/ui/manager-ui.js";
 import { withTempHome } from "./helpers.js";
 
 initTheme("dark", false);

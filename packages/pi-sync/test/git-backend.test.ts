@@ -13,13 +13,17 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { describe, test } from "vitest";
-import { GitSyncBackend, gitBackendIdentity, isSupportedGitVersion } from "../src/git-backend.js";
-import { isGitPayloadSizeAllowed } from "../src/git-storage.js";
+import {
+	GitSyncBackend,
+	gitBackendIdentity,
+	isSupportedGitVersion,
+} from "../src/backends/git/git-backend.js";
+import { isGitPayloadSizeAllowed } from "../src/backends/git/git-storage.js";
 import {
 	expectedRemoteHead,
 	SyncBackendConflictError,
 	SyncBackendPublicationOutcomeUnknownError,
-} from "../src/sync-backend.js";
+} from "../src/backends/sync-backend.js";
 import { createBareRemote, gitConfig } from "./git-test-helpers.js";
 import { snapshot } from "./helpers.js";
 

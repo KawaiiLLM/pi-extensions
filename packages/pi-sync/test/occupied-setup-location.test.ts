@@ -9,10 +9,10 @@ import {
 	localConfigPath,
 	readLocalConfigObject,
 	validateSettingsDocument,
-} from "../src/config.js";
-import { showSyncManager } from "../src/manager-ui.js";
-import { addSyncSetup } from "../src/settings-management.js";
-import { promptAvailableSetupStorage } from "../src/setup-location-ui.js";
+} from "../src/settings/config.js";
+import { addSyncSetup } from "../src/settings/settings-management.js";
+import { showSyncManager } from "../src/ui/manager-ui.js";
+import { promptAvailableSetupStorage } from "../src/ui/setup/setup-location-ui.js";
 import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
 
 initTheme("dark", false);

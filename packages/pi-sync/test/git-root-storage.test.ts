@@ -3,8 +3,8 @@ import { execFileSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import path from "node:path";
 import { test } from "vitest";
-import { GitSyncBackend } from "../src/git-backend.js";
-import { expectedRemoteHead } from "../src/sync-backend.js";
+import { GitSyncBackend } from "../src/backends/git/git-backend.js";
+import { expectedRemoteHead } from "../src/backends/sync-backend.js";
 import { createBareRemote, gitConfig } from "./git-test-helpers.js";
 import { snapshot } from "./helpers.js";
 

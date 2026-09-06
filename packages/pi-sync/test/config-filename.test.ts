@@ -22,7 +22,7 @@ import {
 	updateLocalConfig,
 	validateSettingsDocument,
 	writeLocalConfigObject,
-} from "../src/config.js";
+} from "../src/settings/config.js";
 import {
 	readMigratingLocalConfigDocument,
 	withConfigFilePublicationForTest,
@@ -31,7 +31,7 @@ import {
 	withConfigReplacementInstalledHookForTest,
 	withLocalConfigFileLock,
 	withMissingConfigReadProbeHookForTest,
-} from "../src/config-file.js";
+} from "../src/settings/config-file.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 test("missing pi-sync settings load without materializing the agent directory", async () => {

@@ -9,13 +9,13 @@ import {
 	localConfigPath,
 	readLocalConfigObject,
 	updateLocalConfig,
-} from "../src/config.js";
+} from "../src/settings/config.js";
 import {
 	showAddWebDavStorageProfile,
 	showAddWebDavTarget,
 	showEditWebDavTarget,
 	showWebDavSetup,
-} from "../src/webdav-ui.js";
+} from "../src/ui/setup/webdav-ui.js";
 import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
 
 test("first WebDAV setup stores masked credentials in the exact version 3 shape", async () => {

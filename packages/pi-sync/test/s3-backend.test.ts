@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { test } from "vitest";
-import { S3SyncBackend, snapshotKey } from "../src/s3-backend.js";
+import { S3SyncBackend, snapshotKey } from "../src/backends/s3/s3-backend.js";
 import {
 	expectedRemoteHead,
 	SyncBackendConflictError,
 	SyncBackendPublicationOutcomeUnknownError,
-} from "../src/sync-backend.js";
+} from "../src/backends/sync-backend.js";
 import type { LatestPointer, Snapshot, SyncConfig } from "../src/types.js";
 import { createSyncBackend } from "./backend-factory-eager.js";
 import { snapshot } from "./helpers.js";

@@ -10,8 +10,8 @@ import {
 	normalizeSyncInclude,
 	readLocalConfigObject,
 	validateSettingsDocument,
-} from "../src/config.js";
-import { BUILT_IN_SYNC_ROOTS, isSafeCustomIncludePath } from "../src/sync-policy.js";
+} from "../src/settings/config.js";
+import { BUILT_IN_SYNC_ROOTS, isSafeCustomIncludePath } from "../src/sync/sync-policy.js";
 import { withTempHome } from "./helpers.js";
 
 function connection(type: "s3" | "git" | "webdav") {

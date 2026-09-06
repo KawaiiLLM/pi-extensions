@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
-import { loadConfig, localConfigPath } from "../src/config.js";
-import { saveOnSwitch, useSyncSetup } from "../src/setup-switch.js";
-import { showSyncSetups } from "../src/sync-setups-ui.js";
+import { loadConfig, localConfigPath } from "../src/settings/config.js";
+import { saveOnSwitch, useSyncSetup } from "../src/sync/setup-switch.js";
+import { showSyncSetups } from "../src/ui/sync-setups-ui.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 for (const url of [
@@ -30,7 +30,7 @@ for (const url of [
 			});
 			const before = JSON.stringify(settings);
 			writeFileSync(localConfigPath(), before, { mode: 0o600 });
-			const { showSyncManager } = await import("../src/manager-ui.js");
+			const { showSyncManager } = await import("../src/ui/manager-ui.js");
 			const choices = ["More…", "Sync setups…", "work"];
 			const frames: string[] = [];
 			const routes: string[] = [];

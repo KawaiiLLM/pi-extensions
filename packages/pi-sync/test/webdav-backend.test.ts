@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { SyncBackendPublicationOutcomeUnknownError } from "../src/sync-backend.js";
-import { WebDavSyncBackend } from "../src/webdav-backend.js";
+import { SyncBackendPublicationOutcomeUnknownError } from "../src/backends/sync-backend.js";
+import { WebDavSyncBackend } from "../src/backends/webdav/webdav-backend.js";
 import { snapshot } from "./helpers.js";
 import { MockWebDavServer, webDavConfig } from "./mock-webdav-server.js";
 

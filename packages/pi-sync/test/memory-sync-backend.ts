@@ -8,7 +8,7 @@ import {
 	type SyncBackend,
 	SyncBackendConflictError,
 	SyncBackendPublicationOutcomeUnknownError,
-} from "../src/sync-backend.js";
+} from "../src/backends/sync-backend.js";
 import type { Snapshot } from "../src/types.js";
 
 export class MemorySyncBackend implements SyncBackend {

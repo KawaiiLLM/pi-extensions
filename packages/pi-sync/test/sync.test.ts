@@ -17,19 +17,19 @@ import {
 	setSyncSetupCompletions,
 	usage,
 	validateCommandOptions,
-} from "../src/command.js";
+} from "../src/commands/command.js";
 import {
 	loadConfig,
 	localConfigPath,
 	readLocalConfigObject,
 	syncConfigReviewFingerprint,
 	updateLocalConfig,
-} from "../src/config.js";
-import { showFileSelection } from "../src/file-selection.js";
-import { withStateDirectoryAccess } from "../src/state-directory.js";
+} from "../src/settings/config.js";
+import { withStateDirectoryAccess } from "../src/state/state-directory.js";
+import { syncBoth } from "../src/sync/sync-operations.js";
+import { BUILT_IN_SYNC_ROOTS, RemoteSelectionMismatchError } from "../src/sync/sync-policy.js";
 import sync from "../src/sync.js";
-import { syncBoth } from "../src/sync-operations.js";
-import { BUILT_IN_SYNC_ROOTS, RemoteSelectionMismatchError } from "../src/sync-policy.js";
+import { showFileSelection } from "../src/ui/file-selection.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 initTheme("dark", false);

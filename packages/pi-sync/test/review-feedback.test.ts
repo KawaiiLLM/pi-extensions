@@ -7,14 +7,14 @@ import {
 	localConfigPath,
 	readLocalConfigObject,
 	updateLocalConfig,
-} from "../src/config.js";
-import { showSyncManager } from "../src/manager-ui.js";
+} from "../src/settings/config.js";
 import {
 	addSyncSetup,
 	updateStorageConnection,
 	updateSyncSetup,
-} from "../src/settings-management.js";
-import { errorMessage, redact } from "../src/sync-format.js";
+} from "../src/settings/settings-management.js";
+import { showSyncManager } from "../src/ui/manager-ui.js";
+import { errorMessage, redact } from "../src/ui/sync-format.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 test("shared connection edits reject a stale dependent-setup preview", async () => {

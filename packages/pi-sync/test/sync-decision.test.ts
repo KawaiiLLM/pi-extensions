@@ -5,17 +5,17 @@ import path from "node:path";
 import { gzipSync } from "node:zlib";
 import { test } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
+import { expectedRemoteHead } from "../src/backends/sync-backend.js";
 import {
 	loadConfig,
 	localConfigPath,
 	statePathForConfig,
 	writeStateForConfig,
-} from "../src/config.js";
+} from "../src/settings/config.js";
+import { SyncDecisionRequiredError } from "../src/sync/sync-decision.js";
+import { pull, push, status, syncBoth } from "../src/sync/sync-operations.js";
+import { RemoteSelectionMismatchError } from "../src/sync/sync-policy.js";
 import sync from "../src/sync.js";
-import { expectedRemoteHead } from "../src/sync-backend.js";
-import { SyncDecisionRequiredError } from "../src/sync-decision.js";
-import { pull, push, status, syncBoth } from "../src/sync-operations.js";
-import { RemoteSelectionMismatchError } from "../src/sync-policy.js";
 import type { CommandOptions, Snapshot } from "../src/types.js";
 import { snapshot, v3S3Settings, withTempHome } from "./helpers.js";
 import { MemorySyncBackend } from "./memory-sync-backend.js";

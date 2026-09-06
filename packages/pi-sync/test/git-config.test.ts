@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
-import { loadConfig, localConfigPath, statePathForConfig } from "../src/config.js";
 import {
 	normalizeGitBranch,
 	normalizeGitDirectory,
 	normalizeGitRemote,
 	normalizeGitRemoteIdentity,
-} from "../src/git-config.js";
+} from "../src/backends/git/git-config.js";
+import { loadConfig, localConfigPath, statePathForConfig } from "../src/settings/config.js";
 import { withTempHome } from "./helpers.js";
 
 function gitSettings(path = "pi-sync/home", branch = "pi-sync/home") {

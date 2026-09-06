@@ -6,6 +6,7 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
 import { createCustomSelectorHarness, createMockContext } from "../../../test/support.js";
+import { expectedRemoteHead } from "../src/backends/sync-backend.js";
 import {
 	loadConfig,
 	localConfigPath,
@@ -13,9 +14,8 @@ import {
 	statePathForConfig,
 	syncConfigReviewFingerprint,
 	updateLocalConfig,
-} from "../src/config.js";
-import { showRemoteSelectionReview } from "../src/remote-selection-ui.js";
-import { expectedRemoteHead } from "../src/sync-backend.js";
+} from "../src/settings/config.js";
+import { showRemoteSelectionReview } from "../src/ui/remote-selection-ui.js";
 import { snapshot, v3S3Settings, withTempHome } from "./helpers.js";
 import { MemorySyncBackend } from "./memory-sync-backend.js";
 

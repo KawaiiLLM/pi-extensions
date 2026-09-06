@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import { createSyncAttentionController } from "../src/sync-attention.js";
+import { createSyncAttentionController } from "../src/ui/sync-attention.js";
 
 test("attention presentation is sanitized, textual, bounded, and clearable", () => {
 	const controller = createSyncAttentionController();

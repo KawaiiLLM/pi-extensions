@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { shouldRefreshSyncedState } from "../src/sync-state.js";
+import { shouldRefreshSyncedState } from "../src/sync/sync-state.js";
 import { requiredConfig, snapshot } from "./helpers.js";
 
 test("matching legacy state backfills an opaque remote revision on no-op sync", () => {

@@ -10,9 +10,9 @@ import {
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import { readLocalConfigObject } from "../src/config.js";
-import { showSetupWizard } from "../src/manager-ui.js";
-import { promptInitialSetupName } from "../src/setup-name-ui.js";
+import { readLocalConfigObject } from "../src/settings/config.js";
+import { showSetupWizard } from "../src/ui/manager-ui.js";
+import { promptInitialSetupName } from "../src/ui/setup/setup-name-ui.js";
 import { withTempHome } from "./helpers.js";
 
 initTheme("dark", false);

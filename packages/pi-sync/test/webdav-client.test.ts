@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { WebDavClient } from "../src/webdav-client.js";
+import { WebDavClient } from "../src/backends/webdav/webdav-client.js";
 import { MockWebDavServer, webDavConfig } from "./mock-webdav-server.js";
 
 test("WebDAV client rejects unsafe authenticated base URLs", () => {

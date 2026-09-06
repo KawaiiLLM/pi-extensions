@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { readSnapshotForHead } from "../src/remote-snapshot.js";
+import { readSnapshotForHead } from "../src/sync/remote-snapshot.js";
 import {
 	compareSyncInclude,
 	discoverLegacySnapshotInclude,
 	snapshotSelectionInclude,
-} from "../src/sync-policy.js";
+} from "../src/sync/sync-policy.js";
 import { snapshot } from "./helpers.js";
 import { MemorySyncBackend } from "./memory-sync-backend.js";
 

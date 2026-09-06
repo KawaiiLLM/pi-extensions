@@ -3,13 +3,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
+import { expectedRemoteHead } from "../src/backends/sync-backend.js";
 import {
 	loadConfig,
 	localConfigPath,
 	readStateForConfig,
 	statePathForConfig,
-} from "../src/config.js";
-import { expectedRemoteHead } from "../src/sync-backend.js";
+} from "../src/settings/config.js";
 import {
 	diff,
 	doctor,
@@ -21,7 +21,7 @@ import {
 	rollback,
 	status,
 	syncBoth,
-} from "../src/sync-operations.js";
+} from "../src/sync/sync-operations.js";
 import type { CommandOptions, Snapshot, SyncConfig } from "../src/types.js";
 import { v3S3Settings as requiredConfig, snapshot, withTempHome } from "./helpers.js";
 import { MemorySyncBackend } from "./memory-sync-backend.js";

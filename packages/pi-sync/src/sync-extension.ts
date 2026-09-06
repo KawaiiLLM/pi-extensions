@@ -3,7 +3,6 @@ import type {
 	ExtensionCommandContext,
 	ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import type { RunRouteResult } from "./cancellable-operation.js";
 import {
 	completeSyncArguments,
 	parseOptions,
@@ -12,7 +11,7 @@ import {
 	splitArgs,
 	usage,
 	validateCommandOptions,
-} from "./command.js";
+} from "./commands/command.js";
 import {
 	activeLocalConfigPath,
 	configuredSyncSetupNames,
@@ -28,38 +27,39 @@ import {
 	readStateForConfig,
 	sessionTokenWarnings,
 	syncSessionsWarnings,
-} from "./config.js";
-import { unlock, withLock } from "./lock.js";
-import { recoverSnapshotTransactionsOnStartup } from "./snapshot-transaction.js";
+} from "./settings/config.js";
+import { recoverSnapshotTransactionsOnStartup } from "./snapshot/snapshot-transaction.js";
+import { unlock, withLock } from "./state/lock.js";
 import {
 	migrateLegacyStateDirectory,
 	stateDirectoryMigrationNotice,
 	withStateDirectoryAccess,
-} from "./state-directory.js";
+} from "./state/state-directory.js";
+import {
+	errorMessage,
+	isSyncDecisionRequiredError,
+	SetupPullRequiresUiError,
+} from "./sync/sync-errors.js";
+import {
+	formatRemoteSelectionMismatch,
+	type RemoteSelectionDecision,
+	RemoteSelectionMismatchError,
+} from "./sync/sync-policy.js";
+import type { AnySyncConfig, CommandOptions, SnapshotOptions } from "./types.js";
+import type { RunRouteResult } from "./ui/cancellable-operation.js";
 import {
 	createSyncAttentionController,
 	type SyncAttentionController,
 	type SyncAttentionOrigin,
 	syncAttentionMatchesConfig,
-} from "./sync-attention.js";
-import {
-	errorMessage,
-	isSyncDecisionRequiredError,
-	SetupPullRequiresUiError,
-} from "./sync-errors.js";
-import {
-	formatRemoteSelectionMismatch,
-	type RemoteSelectionDecision,
-	RemoteSelectionMismatchError,
-} from "./sync-policy.js";
-import type { AnySyncConfig, CommandOptions, SnapshotOptions } from "./types.js";
+} from "./ui/sync-attention.js";
 
 const STATUS_KEY = "sync";
 
-type SetupSwitchModule = Pick<typeof import("./setup-switch.js"), "useSyncSetup">;
-type SnapshotModule = Pick<typeof import("./snapshot.js"), "createSnapshot">;
-type SyncStateModule = Pick<typeof import("./sync-state.js"), "hasLocalChanges">;
-type SyncOperations = typeof import("./sync-operations.js");
+type SetupSwitchModule = Pick<typeof import("./sync/setup-switch.js"), "useSyncSetup">;
+type SnapshotModule = Pick<typeof import("./snapshot/snapshot.js"), "createSnapshot">;
+type SyncStateModule = Pick<typeof import("./sync/sync-state.js"), "hasLocalChanges">;
+type SyncOperations = typeof import("./sync/sync-operations.js");
 
 export interface SyncDependencies {
 	loadSetupSwitch(): Promise<SetupSwitchModule>;
@@ -87,12 +87,16 @@ const AUTO_SYNC_OPTIONS: CommandOptions = {
 export default function sync(pi: ExtensionAPI, dependencies: Partial<SyncDependencies> = {}) {
 	const loaders: SyncLoaders = {
 		setupSwitch: cachedModuleLoader(
-			dependencies.loadSetupSwitch ?? (() => import("./setup-switch.js")),
+			dependencies.loadSetupSwitch ?? (() => import("./sync/setup-switch.js")),
 		),
-		snapshot: cachedModuleLoader(dependencies.loadSnapshot ?? (() => import("./snapshot.js"))),
-		syncState: cachedModuleLoader(dependencies.loadSyncState ?? (() => import("./sync-state.js"))),
+		snapshot: cachedModuleLoader(
+			dependencies.loadSnapshot ?? (() => import("./snapshot/snapshot.js")),
+		),
+		syncState: cachedModuleLoader(
+			dependencies.loadSyncState ?? (() => import("./sync/sync-state.js")),
+		),
 		operations: cachedModuleLoader(
-			dependencies.loadSyncOperations ?? (() => import("./sync-operations.js")),
+			dependencies.loadSyncOperations ?? (() => import("./sync/sync-operations.js")),
 		),
 	};
 	const attention = createSyncAttentionController();
@@ -216,7 +220,7 @@ async function handleCommand(
 ) {
 	if (!rawArgs.trim()) {
 		try {
-			const { showSyncManager } = await import("./manager-ui.js");
+			const { showSyncManager } = await import("./ui/manager-ui.js");
 			if (sessionSignal.aborted) return;
 			await showSyncManager(
 				ctx,
@@ -325,7 +329,7 @@ async function resolveSelectionAttention(
 ) {
 	const current = attention.current();
 	if (!current || signal.aborted) return;
-	const { dispatchManagerResult } = await import("./manager-result-dispatcher.js");
+	const { dispatchManagerResult } = await import("./ui/manager-result-dispatcher.js");
 	if (signal.aborted || attention.current() !== current) return;
 	await dispatchManagerResult(
 		ctx,
@@ -447,7 +451,7 @@ async function executeCommand(
 				await showConfig(ctx, options);
 				return { kind: "completed" };
 			case "files": {
-				const { showFileSelection } = await import("./file-selection.js");
+				const { showFileSelection } = await import("./ui/file-selection.js");
 				throwIfAborted(options.signal);
 				await showFileSelection(ctx, options.setup, options.signal);
 				return { kind: "completed" };
@@ -623,7 +627,7 @@ async function initConfig(ctx: ExtensionCommandContext, signal?: AbortSignal) {
 	}
 
 	if (ctx.mode === "tui") {
-		const { showSetupWizard } = await import("./manager-ui.js");
+		const { showSetupWizard } = await import("./ui/manager-ui.js");
 		throwIfAborted(signal);
 		await showSetupWizard(ctx, signal);
 		return;

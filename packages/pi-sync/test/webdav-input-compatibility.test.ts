@@ -5,20 +5,20 @@ import { initTheme } from "@earendil-works/pi-coding-agent";
 import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
+import { WebDavClient } from "../src/backends/webdav/webdav-client.js";
 import {
 	loadConfig,
 	loadPartialConfig,
 	localConfigPath,
 	readLocalConfigObject,
-} from "../src/config.js";
-import { WebDavClient } from "../src/webdav-client.js";
+} from "../src/settings/config.js";
 import {
 	showAddWebDavStorageProfile,
 	showAddWebDavTarget,
 	showEditWebDavStorageProfile,
 	showEditWebDavTarget,
 	showWebDavSetup,
-} from "../src/webdav-ui.js";
+} from "../src/ui/setup/webdav-ui.js";
 import { v3WebDavSettings, withTempHome } from "./helpers.js";
 
 initTheme("dark", false);

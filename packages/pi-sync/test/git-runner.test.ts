@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
-import { parseGitBlobBatch, readGitBlobs, runGit } from "../src/git-runner.js";
+import { parseGitBlobBatch, readGitBlobs, runGit } from "../src/backends/git/git-runner.js";
 
 test("Git runner strips inherited Git control variables and closes stdin", async () => {
 	const previous = process.env.GIT_DIR;

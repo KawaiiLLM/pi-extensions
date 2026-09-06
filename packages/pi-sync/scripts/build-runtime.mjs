@@ -14,15 +14,15 @@ const GENERATED_BANNER = [
 ].join("\n");
 
 const FORBIDDEN_EAGER_INPUTS = [
-	"src/setup-switch.ts",
-	"src/sync-operations.ts",
-	"src/manager-ui.ts",
-	"src/manager-result-dispatcher.ts",
-	"src/file-selection.ts",
-	"src/remote-selection-ui.ts",
-	"src/s3-backend.ts",
-	"src/webdav-backend.ts",
-	"src/git-backend.ts",
+	"src/sync/setup-switch.ts",
+	"src/sync/sync-operations.ts",
+	"src/ui/manager-ui.ts",
+	"src/ui/manager-result-dispatcher.ts",
+	"src/ui/file-selection.ts",
+	"src/ui/remote-selection-ui.ts",
+	"src/backends/s3/s3-backend.ts",
+	"src/backends/webdav/webdav-backend.ts",
+	"src/backends/git/git-backend.ts",
 ];
 const FORBIDDEN_EAGER_EXTERNALS = ["@narumitw/pi-tui-kit", "fast-xml-parser"];
 

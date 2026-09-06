@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { S3Client } from "../src/s3-client.js";
+import { S3Client } from "../src/backends/s3/s3-client.js";
 import { requiredConfig } from "./helpers.js";
 
 test("S3 JSON reads reject oversized response bodies", async () => {
