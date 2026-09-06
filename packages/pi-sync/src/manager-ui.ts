@@ -360,11 +360,11 @@ export async function showSetupWizard(ctx: ExtensionCommandContext, signal?: Abo
 		[
 			"Name this sync setup",
 			"",
-			"Examples: home, work, personal. Leave blank to use home.",
+			"Examples: home, work, personal. Leave blank to use default.",
 			"Used in suggested storage paths and Git branches.",
 			"Sync content and automatic sync are chosen separately.",
 		].join("\n"),
-		"home",
+		"default",
 		signal,
 	);
 	if (!targetName) return false;

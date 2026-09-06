@@ -46,7 +46,8 @@ test.each([
 	["home", "home"],
 	["work", "work"],
 	[" personal ", "personal"],
-	["", "home"],
+	["", "default"],
+	["   ", "default"],
 ])("first Cloudflare R2 setup uses entered name %j and masked credentials", async (input, name) => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
@@ -96,7 +97,7 @@ test.each([
 		});
 		assert.match(inputTitles[0], /^Name this sync setup\n/u);
 		assert.match(inputTitles[0], /Examples: home, work, personal/u);
-		assert.match(inputTitles[0], /Leave blank to use home/u);
+		assert.match(inputTitles[0], /Leave blank to use default/u);
 		assert.match(inputTitles[0], /suggested storage paths and Git branches/u);
 		assert.match(inputTitles[0], /Sync content and automatic sync are chosen separately/u);
 		assert.deepEqual(inputTitles.slice(1), ["Cloudflare R2 endpoint", "Access key ID"]);
