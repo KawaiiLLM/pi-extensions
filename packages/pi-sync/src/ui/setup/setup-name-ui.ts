@@ -17,8 +17,10 @@ export async function promptInitialSetupName(ctx: ExtensionCommandContext, signa
 		}
 		if (value === undefined) return undefined;
 		const name = value.trim() || "default";
-		if (name.includes("<") || name.includes(">")) return undefined;
 		try {
+			if (name.includes("<") || name.includes(">")) {
+				throw new Error("Replace example placeholders with your own name.");
+			}
 			validateConfigName(name, "sync setup");
 			return name;
 		} catch (error) {

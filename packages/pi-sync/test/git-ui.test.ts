@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
-import { createMockContext } from "../../../test/support.js";
 import { loadConfig, loadPartialConfig } from "../src/settings/config.js";
 import { localConfigPath } from "../src/settings/config-file.js";
 import { readLocalConfigObject, updateLocalConfig } from "../src/settings/settings-store.js";
@@ -13,6 +12,7 @@ import {
 } from "../src/ui/setup/git-ui.js";
 import { showStorageConnections } from "../src/ui/storage-connections-ui.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
+import { createMockContext } from "./setup-test-context.js";
 
 for (const remote of [
 	"git@github.com:owner-a/pi-sync.git",
@@ -49,7 +49,7 @@ test("first Git setup writes the exact version 3 connection and setup shapes", a
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
 		const inputs = ["git@github.com:user/pi-sync.git", "pi-sync/home", "pi-sync/home"];
-		const choices = ["Enable automatic sync", "Save setup"];
+		const choices = ["Recommended Pi settings", "Enable automatic sync", "Save setup"];
 		const { ctx, notifications } = createMockContext({
 			hasUI: true,
 			mode: "tui",
@@ -70,6 +70,39 @@ test("first Git setup writes the exact version 3 connection and setup shapes", a
 		assert.equal(raw?.syncSetups.home.sync.automatic, true);
 		assert.doesNotMatch(JSON.stringify(raw), /password|secretAccessKey/u);
 		assert.match(notifications.at(-1)?.message ?? "", /Saved Git sync setup/u);
+	});
+});
+
+test("Git field correction keeps earlier remote and branch answers", async () => {
+	await withTempHome(async () => {
+		const inputs = [
+			"not-a-remote",
+			"git@github.com:owner/private.git",
+			"bad..branch",
+			"archive",
+			"../escape",
+			"backups/settings",
+		];
+		const choices = ["Minimal settings", "Keep automatic sync off", "Save setup"];
+		const titles: string[] = [];
+		const { ctx, notifications } = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			input: async (title: string) => {
+				titles.push(title);
+				return inputs.shift();
+			},
+			select: async () => choices.shift(),
+		});
+		assert.equal(await showGitSetup(ctx, "home"), true);
+		const config = await loadConfig();
+		assert.equal(config.backend.type, "git");
+		if (config.backend.type !== "git") return;
+		assert.equal(config.backend.profile.remote, "git@github.com:owner/private.git");
+		assert.equal(config.backend.destination.branch, "archive");
+		assert.equal(config.storagePath, "backups/settings");
+		assert.equal(titles.length, 6);
+		assert.equal(notifications.filter((item) => item.level === "warning").length, 3);
 	});
 });
 
@@ -218,7 +251,7 @@ test("Git setup preserves unknown empty-catalog settings and edit defaults retai
 			{ mode: 0o600 },
 		);
 		const inputs = ["git@github.com:user/pi-sync.git", "archives", "backups/home"];
-		const choices = ["Keep automatic sync off", "Save setup"];
+		const choices = ["Recommended Pi settings", "Keep automatic sync off", "Save setup"];
 		const { ctx } = createMockContext({
 			hasUI: true,
 			mode: "tui",

@@ -1,28 +1,22 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { normalizeS3Bucket, requiredString } from "../../settings/settings-validation.js";
+import { errorMessage } from "../../sync/sync-errors.js";
 import { safeTerminalText } from "../terminal-text.js";
+
+export type ValidateInput = (value: string) => string | Promise<string>;
 
 export async function requiredExistingBucket(
 	ctx: ExtensionCommandContext,
 	example: string,
 	signal?: AbortSignal,
 ) {
-	const value = await ctx.ui.input(
-		`Existing bucket\n\nThe bucket must already exist; pi-sync will not create it.\nExample: ${safeTerminalText(example)}`,
-		undefined,
-		{ signal },
+	return requiredValueInput(
+		ctx,
+		"Existing bucket\n\nThe bucket must already exist; pi-sync will not create it.",
+		example,
+		signal,
+		normalizeS3Bucket,
 	);
-	if (signal?.aborted) {
-		throw signal.reason instanceof Error
-			? signal.reason
-			: new DOMException("The operation was aborted", "AbortError");
-	}
-	if (value === undefined) return undefined;
-	const normalized = value.trim();
-	if (!normalized) {
-		ctx.ui.notify("Enter the name of an existing R2/S3 bucket, or cancel setup.", "warning");
-		return undefined;
-	}
-	return normalized;
 }
 
 export async function requiredInput(
@@ -30,8 +24,9 @@ export async function requiredInput(
 	title: string,
 	defaultValue: string,
 	signal?: AbortSignal,
+	validate?: ValidateInput,
 ) {
-	return withoutPlaceholder(await promptTextInput(ctx, title, { defaultValue }, signal));
+	return promptTextInput(ctx, title, { defaultValue, validate, rejectPlaceholders: true }, signal);
 }
 
 export async function requiredValueInput(
@@ -39,38 +34,45 @@ export async function requiredValueInput(
 	title: string,
 	example: string,
 	signal?: AbortSignal,
+	validate?: ValidateInput,
 ) {
-	return withoutPlaceholder(await promptTextInput(ctx, title, { example }, signal));
+	return promptTextInput(ctx, title, { example, validate, rejectPlaceholders: true }, signal);
 }
 
 export async function promptTextInput(
 	ctx: ExtensionCommandContext,
 	title: string,
-	options: { defaultValue?: string; example?: string },
+	options: {
+		defaultValue?: string;
+		example?: string;
+		validate?: ValidateInput;
+		rejectPlaceholders?: boolean;
+	},
 	signal?: AbortSignal,
 ) {
-	if (signal?.aborted) signal.throwIfAborted();
-	// Pi's TUI ignores input placeholders. Keep guidance visible in the title in every UI mode.
+	// Pi ignores placeholders. Keep defaults/examples visible; only an explicit blank accepts a default.
 	const hint =
 		options.defaultValue !== undefined
 			? `Default: ${safeTerminalText(options.defaultValue)} (leave blank to keep)`
 			: `Example: ${safeTerminalText(options.example ?? "")}\nEnter your own value; this example is not a default.`;
-	const value = await ctx.ui.input(`${title}\n\n${hint}`, undefined, { signal });
-	if (signal?.aborted) {
-		throw signal.reason instanceof Error
-			? signal.reason
-			: new DOMException("The operation was aborted", "AbortError");
+	while (true) {
+		signal?.throwIfAborted();
+		const value = await ctx.ui.input(`${title}\n\n${hint}`, undefined, { signal });
+		signal?.throwIfAborted();
+		if (value === undefined) return undefined;
+		try {
+			const normalized = value.trim() || options.defaultValue;
+			if (!normalized) throw new Error(`${title.split("\n")[0]} is required.`);
+			if (options.rejectPlaceholders && /[<>]/u.test(normalized)) {
+				throw new Error("Replace example placeholders such as <account-id> with your own value.");
+			}
+			const checked = requiredString(normalized, title.split("\n")[0] ?? "value");
+			const result = options.validate ? await options.validate(checked) : checked;
+			signal?.throwIfAborted();
+			return result;
+		} catch (error) {
+			signal?.throwIfAborted();
+			ctx.ui.notify(`${errorMessage(error)} Enter a corrected value, or cancel.`, "warning");
+		}
 	}
-	if (value === undefined) return undefined;
-	const normalized = value.trim() || options.defaultValue;
-	if (!normalized) {
-		ctx.ui.notify(`${title.split("\n")[0]} is required.`, "warning");
-		return undefined;
-	}
-	return normalized;
-}
-
-function withoutPlaceholder(value: string | undefined) {
-	// Preserve the existing Git/S3 placeholder policy; WebDAV permits literal angle brackets.
-	return value?.includes("<") || value?.includes(">") ? undefined : value;
 }

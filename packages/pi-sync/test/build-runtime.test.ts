@@ -160,7 +160,8 @@ test("generated runtime is mapped, external, self-contained, and loadable by Pi"
 			assert.ok(
 				titles.some(
 					(title) =>
-						title.startsWith("Choose storage location") && title.includes("Remote path: ./"),
+						title.startsWith("Choose storage location") &&
+						title.includes("./ stores snapshots at the bucket root"),
 				),
 				titles.join("\n"),
 			);

@@ -175,7 +175,7 @@ export async function doctor(
 	if (lock.status === "valid" && isStaleLock(lock.lock)) {
 		level = "warning";
 		messages.push(
-			`lock: stale (pid ${lock.lock.pid}); run /sync unlock after verifying no sync is running`,
+			`lock: stale (pid ${lock.lock.pid}); run /sync unlock --stale after verifying no sync is running`,
 		);
 	} else if (lock.status === "valid") {
 		messages.push(`lock: held by pid ${lock.lock.pid} since ${lock.lock.startedAt}`);

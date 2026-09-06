@@ -14,7 +14,9 @@ let configUpdateQueue: Promise<void> = Promise.resolve();
 export async function requireSettings() {
 	const settings = await readLocalConfigObject();
 	if (!settings) {
-		throw new Error(`Missing pi-sync settings. Use /sync setup or create ${localConfigPath()}.`);
+		throw new Error(
+			`Missing pi-sync settings. Open /sync and choose Set up sync, or create ${localConfigPath()}.`,
+		);
 	}
 	return settings;
 }

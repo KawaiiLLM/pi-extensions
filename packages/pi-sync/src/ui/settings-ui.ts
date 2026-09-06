@@ -12,6 +12,7 @@ import {
 } from "../sync/setup-switch.js";
 import type { RunRoute } from "./cancellable-operation.js";
 import { dispatchManagerResult } from "./manager-result-dispatcher.js";
+import { AUTOMATIC_SYNC_DESCRIPTION } from "./setup/setup-prompts.js";
 import { safeTerminalText } from "./terminal-text.js";
 
 export type SyncSettingsRoute = RunRoute;
@@ -47,24 +48,25 @@ export async function showSyncSettings(
 					{
 						id: "automatic",
 						label: "Automatic sync",
-						description: "Run conservative synchronization at session startup and shutdown.",
+						description: AUTOMATIC_SYNC_DESCRIPTION,
 						currentValue: state.automatic ? "On" : "Off",
 						values: ["On", "Off"],
 						action: "automatic",
 					},
 					{
 						id: "skipSecretScan",
-						label: "Skip secret scan",
-						description: "Allow pushes without checking managed local files for possible secrets.",
+						label: "Skip secret scan (all setups)",
+						description:
+							"All setups: allow pushes without checking managed local files for possible secrets.",
 						currentValue: state.skipSecretScan ? "On" : "Off",
 						values: ["On", "Off"],
 						action: "skip-secret-scan",
 					},
 					{
 						id: "onSwitch",
-						label: "After switching setup",
+						label: "After switching setup (all setups)",
 						description:
-							"Ask before a reviewed pull, start a reviewed pull, or switch without checking remote files.",
+							"All setups: ask before a pull review, open it automatically, or switch without pulling.",
 						currentValue: setupSwitchActionLabel(state.onSwitch),
 						values: SETUP_SWITCH_ACTION_OPTIONS.map(({ label }) => label),
 						action: "on-switch",
@@ -72,7 +74,7 @@ export async function showSyncSettings(
 					{
 						id: "include",
 						label: "Included content",
-						description: `${state.include.length} selected path${state.include.length === 1 ? "" : "s"}. Opens the reviewed content-selection draft.`,
+						description: `${state.include.length} selected path${state.include.length === 1 ? "" : "s"}. Choose which paths this setup syncs.`,
 						currentValue: "Open editor",
 						action: "include",
 					},
@@ -120,7 +122,7 @@ export async function showSyncSettings(
 					await updateLocalConfig((settings) => ({ ...settings, skipSecretScan }), mutationSignal);
 					if (mutationSignal.aborted) return { kind: "rejected" };
 					ctx.ui.notify(
-						`Secret scan ${skipSecretScan ? "disabled" : "enabled"} for pushes.`,
+						`Secret scan ${skipSecretScan ? "disabled" : "enabled"} for pushes in all setups.`,
 						"info",
 					);
 					return { kind: "stay" };

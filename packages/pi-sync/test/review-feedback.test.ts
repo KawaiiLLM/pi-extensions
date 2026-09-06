@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
-import { createMockContext } from "../../../test/support.js";
 import { loadConfig } from "../src/settings/config.js";
 import { localConfigPath } from "../src/settings/config-file.js";
 import {
@@ -14,6 +13,7 @@ import { errorMessage } from "../src/sync/sync-errors.js";
 import { showSyncManager } from "../src/ui/manager-ui.js";
 import { redact } from "../src/ui/sync-format.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
+import { createMockContext } from "./setup-test-context.js";
 
 test("shared connection edits reject a stale dependent-setup preview", async () => {
 	await withTempHome(async (agentDir) => {
@@ -61,7 +61,7 @@ test("S3 setup edit rejects coordinates changed while its review is open", async
 			"More…",
 			"Sync setups…",
 			"home (current)",
-			"Edit sync setup…",
+			"Edit storage location…",
 			"Back",
 			"Back",
 			"Back",
@@ -74,7 +74,7 @@ test("S3 setup edit rejects coordinates changed while its review is open", async
 			mode: "tui",
 			input: async () => inputs.shift(),
 			select: async (title: string) => {
-				if (title.startsWith("Review sync setup")) {
+				if (title.includes("Review sync setup")) {
 					rebound = true;
 					await updateLocalConfig((current) => ({
 						...current,

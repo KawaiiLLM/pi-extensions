@@ -7,11 +7,7 @@ import { promisify } from "node:util";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
-import {
-	createCustomSelectorHarness,
-	createMockContext,
-	createMockPi,
-} from "../../../test/support.js";
+import { createCustomSelectorHarness, createMockPi } from "../../../test/support.js";
 import { loadConfig } from "../src/settings/config.js";
 import {
 	localConfigPath,
@@ -37,6 +33,7 @@ import { showSyncSettings } from "../src/ui/settings-ui.js";
 import { showSetupWizard } from "../src/ui/setup/setup-wizard.js";
 import { showStorageConnections } from "../src/ui/storage-connections-ui.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
+import { createMockContext } from "./setup-test-context.js";
 
 initTheme("dark", false);
 const execFileAsync = promisify(execFile);
@@ -59,7 +56,7 @@ test.each([
 		const choices = [
 			"Set up sync",
 			"Cloudflare R2",
-			"Use suggested location (recommended)",
+			"Use an existing bucket at ./",
 			"Store credentials privately",
 			"Recommended Pi settings",
 			"Enable automatic sync",
@@ -67,7 +64,7 @@ test.each([
 			"Save sync setup",
 			undefined,
 		];
-		const inputs = [input, "https://account.r2.cloudflarestorage.com", "access-key"];
+		const inputs = [input, "https://account.r2.cloudflarestorage.com", "pi-sync", "access-key"];
 		const rendered: string[] = [];
 		const inputTitles: string[] = [];
 		const { ctx } = createMockContext({
@@ -104,7 +101,7 @@ test.each([
 		);
 		assert.deepEqual(
 			inputTitles.slice(1).map((title) => title.split("\n")[0]),
-			["Cloudflare R2 endpoint", "Access key ID"],
+			["Cloudflare R2 endpoint", "Existing bucket", "Access key ID"],
 		);
 		assert.match(inputTitles[1], /Example: https:\/\/<account-id>\.r2\.cloudflarestorage\.com/u);
 		assert.ok(rendered.join("\n").includes("Storage location: ./"));
@@ -125,9 +122,7 @@ test.each(
 		const r2 = preset === "Cloudflare R2";
 		const choices = [
 			preset,
-			r2
-				? "Use suggested location (recommended)"
-				: "Use existing bucket with suggested path (recommended)",
+			"Use an existing bucket at ./",
 			"Store credentials privately",
 			"Minimal settings",
 			"Keep automatic sync off",
@@ -136,7 +131,8 @@ test.each(
 		];
 		const inputs = [
 			r2 ? "https://account.r2.cloudflarestorage.com" : "https://s3.example.com",
-			...(r2 ? [] : ["us-east-1", "existing-bucket"]),
+			...(r2 ? [] : ["us-east-1"]),
+			"existing-bucket",
 			"access-key",
 		];
 		const titles: string[] = [];
@@ -146,7 +142,7 @@ test.each(
 			hasUI: true,
 			mode: "tui",
 			select: async (title: string) => {
-				if (title.startsWith("Review sync setup")) review = title;
+				if (title.includes("Review sync setup")) review = title;
 				return choices.shift();
 			},
 			input: async (title: string) => {
@@ -160,8 +156,7 @@ test.each(
 			custom: secretInput("secret-key"),
 		});
 		assert.equal(await showSetupWizard(ctx), true);
-		const reviewedPath = review.split("\n").find((line) => line.startsWith("Storage location: "));
-		assert.equal(reviewedPath, "Storage location: ./");
+		assert.match(review, /Storage location: \.\//u);
 		assert.match(titles[0], /^Sync setup name/u);
 		assert.equal(nameCalls, 1);
 		assert.equal(notifications.filter((item) => item.level === "warning").length, 0);
@@ -234,22 +229,32 @@ test("session inclusion requires privacy acknowledgement before settings publica
 		const choices = [
 			"Set up sync",
 			"Cloudflare R2",
-			"Use suggested location (recommended)",
+			"Use an existing bucket at ./",
 			"Store credentials privately",
 			"Recommended Pi settings",
 			"Keep automatic sync off",
 			"Include session conversations",
 		];
-		const inputs = ["home", "https://account.r2.cloudflarestorage.com", "access-key"];
+		const inputs = [
+			"home",
+			"https://account.r2.cloudflarestorage.com",
+			"existing-bucket",
+			"access-key",
+		];
+		let privacyShown = false;
 		const { ctx } = createMockContext({
 			hasUI: true,
 			mode: "tui",
 			select: async () => choices.shift(),
 			input: async () => inputs.shift(),
-			confirm: async () => false,
+			confirm: async (title: string) => {
+				privacyShown = title === "Include session conversations?";
+				return false;
+			},
 			custom: secretInput("secret-key"),
 		});
 		await mock.commands.get("sync")?.handler("", ctx);
+		assert.equal(privacyShown, true);
 		assert.equal(await readLocalConfigObject(), undefined);
 	});
 });
@@ -407,6 +412,7 @@ test("S3 manager reuses a connection and defaults a new setup to the bucket root
 			"r2",
 			"Same bucket as “home”",
 			"Recommended Pi settings",
+			"Keep automatic sync off",
 			"Add sync setup",
 			undefined,
 			undefined,

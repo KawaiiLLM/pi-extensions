@@ -4,6 +4,7 @@ import path from "node:path";
 import { posixJoin } from "../../paths.js";
 import type { Snapshot, SnapshotFile } from "../../snapshot/snapshot-types.js";
 import { stateDir } from "../../state/state-directory.js";
+import { syncErrorGuidance } from "../../sync/sync-error-guidance.js";
 import type { ResolvedGitBackend } from "../backend-types.js";
 import {
 	type BackendDiagnostic,
@@ -269,7 +270,14 @@ export class GitSyncBackend implements SyncBackend {
 	}
 
 	async diagnose(signal?: AbortSignal): Promise<BackendDiagnostic[]> {
-		const diagnostics: BackendDiagnostic[] = [];
+		const diagnostics: BackendDiagnostic[] = [
+			{
+				key: "git-scope",
+				level: "info",
+				message:
+					"git check scope: read remote snapshots and inspect the local cache. Write access is not tested.",
+			},
+		];
 		try {
 			const version = await runGit(["--version"], {
 				signal,
@@ -285,7 +293,13 @@ export class GitSyncBackend implements SyncBackend {
 					: `${versionText || "unknown Git version"}; pi-sync requires Git 2.30 or newer`,
 			});
 		} catch (error) {
-			return [{ key: "git-version", level: "error", message: this.safeError(error) }];
+			return [
+				{
+					key: "git-version",
+					level: "error",
+					message: syncErrorGuidance(new Error(this.safeError(error))),
+				},
+			];
 		}
 		try {
 			const head = await this.readHead(signal);
@@ -306,7 +320,7 @@ export class GitSyncBackend implements SyncBackend {
 			diagnostics.push({
 				key: "git-remote",
 				level: "error",
-				message: `git remote: ${this.safeError(error)}`,
+				message: `git remote: ${syncErrorGuidance(new Error(this.safeError(error)))}`,
 			});
 		}
 		return diagnostics;

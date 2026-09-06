@@ -48,7 +48,10 @@ All new setups default to storage path `./`: the Git repository root, the WebDAV
 Git also suggests branch `main`.
 Use different folders or prefixes for independent setups sharing a WebDAV collection or bucket; existing settings and paths are unchanged.
 If another configured setup already uses the chosen location, setup asks for a different path before the content selection and review; Git requires a different branch, even when the directory differs.
-Before saving, review the storage connection, exact remote path, included content, automatic-sync choice, and masked credentials.
+Every new setup asks for included content and automatic sync; automatic sync is off unless you enable it. Recommended includes nine Pi roots; Minimal includes `settings.json` and `AGENTS.md`. Sessions stay off unless explicitly included with a privacy acknowledgement.
+Before saving, scroll through the exact destination, every included path, automatic-sync choice, and hidden-credential summary. R2/S3 always asks for an existing bucket; an example bucket name is not a default.
+
+Invalid fields ask for a correction without restarting setup. A temporary local save failure keeps the review for another Save; changed settings require reopening and reviewing the current values. Saving only changes local settings, not remote data. A connection saved through **Add a new storage connection…** remains saved if you later cancel the setup.
 
 Buckets and remote repositories must already exist.
 Git uses existing non-interactive SSH or credential-helper configuration and never stores Git credentials.
@@ -73,9 +76,11 @@ Primary actions include **Sync now**, **Switch sync setup**, **Status & changes*
 After Pi Sync detects an included-content mismatch, the manager shows **Sync status: Review needed** and puts **Review synced content (recommended)** first.
 **Sync now** remains unavailable until you review the mismatch.
 Opening the manager does not make another remote request.
-The manager also provides setup and connection details, history, and recovery.
+Under **More…**, **Storage connections** holds reusable server addresses and sign-in details; **Sync setups** holds content, destination, and automatic-sync choices. **Edit storage location…** changes only bucket, branch, or path, not the connection or included content. Use **Settings** for the current setup's content and automatic sync; make another setup current before changing those settings.
 
-On secondary screens, **Back** and Escape return to the previous screen, while Ctrl+C closes the flow.
+**More… → Check setup** (also `/sync doctor`) reports configuration and backend-specific access checks. S3/R2 performs a read-only request: success does not prove write access or snapshot validity, and an ambiguous 404 does not prove a bucket is missing. Check the indicated credentials, address, bucket, or path before retrying. Git checks remote reads and the local cache, not write access. WebDAV uses an isolated write/cleanup probe and repairs the active snapshot's history entry if missing. The existing **History & recovery** route remains available.
+
+On secondary menus, **Back** and Escape return to the previous screen. In setup inputs and save reviews, cancellation (including Ctrl+C) discards the current unsaved draft and returns to its owning menu. Session replacement or shutdown closes the owning flow.
 Specialized operation and masked-credential prompts show the effective cancellation bindings and keep Ctrl+C as a hard-cancel input when Back is remapped.
 Destructive, credential-bearing, and externally visible operations show exact previews and confirmations.
 
@@ -143,7 +148,9 @@ Print and JSON modes do not support `/sync` because UI output is not observable 
 Run `/sync` → **Set up sync** to create the canonical private user file at `<getAgentDir()>/pi-sync.json` (normally `~/.pi/agent/pi-sync.json`).
 Use **Settings** to manage an existing setup.
 Missing settings stay unconfigured without creating files or locks.
-**Settings → Skip secret scan** defaults to **Off**; enable it only after reviewing the destination and selected content because it disables push scanning for every setup.
+Automatic sync runs for the current setup when a Pi session starts. At shutdown, it pushes changes only when sessions are included; it never opens a shutdown dialog.
+
+**Settings → Skip secret scan (all setups)** defaults to **Off**; enable it only after reviewing the destination and selected content because it disables push scanning for every setup.
 See [Secret scanning](./docs/settings.md#secret-scanning) for the setting and diagnostic behavior.
 
 A minimal Git setup uses an existing private remote and keeps automatic sync off:
@@ -234,7 +241,7 @@ The private bare cache under `<agent-dir>/pi-sync/git/` is rebuildable.
 
 WebDAV requires HTTPS except loopback tests.
 URL credentials, query strings, fragments, unsafe redirects, weak/missing ETags, and ignored conditional headers fail closed.
-`/sync doctor` verifies collection and conditional-write behavior with an isolated probe.
+`/sync doctor` verifies collection and conditional-write behavior with an isolated probe, then repairs a missing active-snapshot history entry.
 
 S3/R2 stages immutable bundles, rechecks the visible head before publication, and verifies afterward.
 Unlike Git/WebDAV, generic S3 does not provide an atomic compare-and-swap for `latest.json`; status review remains important for simultaneous writers.

@@ -86,8 +86,15 @@ test("Sync setups list and detail expose current marker, Make current, edit, rem
 		const list = optionsSeen.find((items) => items.includes("home (current)"));
 		assert.ok(list?.includes("Add sync setup"));
 		const detail = optionsSeen.find((items) => items.includes("Make current…"));
-		assert.deepEqual(detail, ["Make current…", "Edit sync setup…", "Remove sync setup…", "Back"]);
+		assert.deepEqual(detail, [
+			"Make current…",
+			"Edit storage location…",
+			"Remove sync setup…",
+			"Back",
+		]);
 		assert.match(titles.join("\n"), /Storage connection: git/u);
+		assert.match(titles.join("\n"), /What to sync, where to store it/u);
+		assert.match(titles.join("\n"), /make this setup current/u);
 	});
 });
 
@@ -111,7 +118,31 @@ test("Storage connections list and detail are symmetric and redact credentials",
 		const detail = titles.find((title) => title.includes("Storage connection “r2”")) ?? "";
 		assert.match(detail, /Credentials: Settings file/u);
 		assert.match(detail, /Used by: home/u);
+		assert.match(titles.join("\n"), /Server addresses and sign-in details/u);
+		assert.match(detail, /remove the listed sync setups first/u);
+		assert.doesNotMatch(detail, /edit or remove/u);
 		assert.doesNotMatch(detail, /access|secret/u);
+	});
+});
+
+test("More exposes Check setup directly and preserves the doctor route", async () => {
+	await withSettings(async () => {
+		const choices = ["More…", "Check setup", undefined];
+		const frames: string[] = [];
+		const routes: string[] = [];
+		const { ctx } = createMockContext({
+			hasUI: true,
+			mode: "rpc",
+			select: async (title: string) => {
+				frames.push(title);
+				return choices.shift();
+			},
+		});
+		await showSyncManager(ctx, async (route) => {
+			routes.push(route);
+		});
+		assert.deepEqual(routes, ["doctor"]);
+		assert.match(frames.join("\n"), /More options/u);
 	});
 });
 
@@ -133,8 +164,8 @@ test("the sole current sync setup offers removal to return to an empty catalog",
 			},
 		});
 		await showSyncManager(ctx, async () => undefined);
-		const detail = optionsSeen.find((items) => items.includes("Edit sync setup…"));
-		assert.deepEqual(detail, ["Edit sync setup…", "Remove sync setup…", "Back"]);
+		const detail = optionsSeen.find((items) => items.includes("Edit storage location…"));
+		assert.deepEqual(detail, ["Edit storage location…", "Remove sync setup…", "Back"]);
 		assert.doesNotMatch(titles.join("\n"), /Remove unavailable/u);
 	}, value);
 });

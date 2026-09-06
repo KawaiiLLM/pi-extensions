@@ -10,8 +10,8 @@ import { showSyncSetups } from "../sync-setups-ui.js";
 import { safeTerminalText } from "../terminal-text.js";
 import { showAddGitTarget, showEditGitTarget } from "./git-ui.js";
 import { showAddS3Target, showEditS3Target } from "./s3-ui.js";
+import { promptResourceName } from "./setup-prompts.js";
 import { showSetupSwitcher } from "./setup-switcher.js";
-import { requiredInput } from "./text-input.js";
 import { showAddWebDavTarget, showEditWebDavTarget } from "./webdav-ui.js";
 
 export async function showSyncSetupManager(
@@ -52,15 +52,15 @@ async function showAddTarget(ctx: ExtensionCommandContext, signal?: AbortSignal)
 		return;
 	}
 	let profiles = ownRecord(raw.storageConnections) ?? {};
-	const name = await requiredInput(ctx, "Name the new sync setup", "work", signal);
+	const name = await promptResourceName(ctx, "sync setup", "work", signal);
 	if (!name) return;
 	const createConnection = "Add a new storage connection…";
 	let profile = await ctx.ui.select(
-		"Choose a storage connection",
+		"Choose a storage connection\n\nReuse a server address and sign-in details. A new connection is saved separately and remains if you cancel this setup.",
 		[...Object.keys(profiles).sort(), createConnection, "Cancel"],
 		{ signal },
 	);
-	if (!profile || profile === "Cancel") return;
+	if (signal?.aborted || !profile || profile === "Cancel") return;
 	if (profile === createConnection) {
 		const previousNames = new Set(Object.keys(profiles));
 		if (!(await showAddStorageConnection(ctx, signal))) return;
@@ -70,6 +70,10 @@ async function showAddTarget(ctx: ExtensionCommandContext, signal?: AbortSignal)
 		profiles = ownRecord(raw.storageConnections) ?? {};
 		profile = Object.keys(profiles).find((candidate) => !previousNames.has(candidate));
 		if (!profile) return;
+		ctx.ui.notify(
+			`Connection “${safeTerminalText(profile)}” saved. Cancelling setup will keep this connection.`,
+			"info",
+		);
 	}
 	const storageKind = ownRecord(profiles[profile])?.type;
 	if (storageKind === "webdav") {
@@ -115,6 +119,7 @@ async function showRemoveTarget(ctx: ExtensionCommandContext, name: string, sign
 	await removeSyncSetup(name, signal);
 	if (signal?.aborted) return;
 	await refreshTargetCompletions();
+	if (signal?.aborted) return;
 	ctx.ui.notify(
 		`Removed sync setup “${safeTerminalText(name)}”; remote data was not deleted.`,
 		"info",

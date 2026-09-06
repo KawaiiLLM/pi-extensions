@@ -15,11 +15,14 @@ export async function chooseS3CredentialUpdate(
 	signal?: AbortSignal,
 ) {
 	const hasStored =
-		typeof profile.accessKeyId === "string" && typeof profile.secretAccessKey === "string";
+		typeof profile.accessKeyId === "string" &&
+		profile.accessKeyId.length > 0 &&
+		typeof profile.secretAccessKey === "string" &&
+		profile.secretAccessKey.length > 0;
 	if (hasStored) {
 		const action = await ctx.ui.select(
 			"Credentials",
-			["Keep current credentials", "Change credential source", "Cancel"],
+			["Keep current credentials", "Replace credentials", "Cancel"],
 			{ signal },
 		);
 		throwIfAborted(signal);

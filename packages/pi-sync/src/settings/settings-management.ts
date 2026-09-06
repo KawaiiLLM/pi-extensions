@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { normalizeSyncInclude } from "../sync/sync-policy.js";
 import { type SyncSetupStorageReview, syncSetupStorageReview } from "./config.js";
 import { localConfigPath } from "./config-file.js";
@@ -91,13 +92,26 @@ export async function updateStorageConnection(
 	}, signal);
 }
 
-export async function addSyncSetup(name: string, setup: SyncSetupSettings, signal?: AbortSignal) {
+export async function addSyncSetup(
+	name: string,
+	setup: SyncSetupSettings,
+	signal?: AbortSignal,
+	expectedConnection?: StorageConnectionSettings,
+) {
 	validateConfigName(name, "sync setup");
 	await updateSettings((settings) => {
 		if (Object.hasOwn(settings.syncSetups, name))
 			throw new Error(`Sync setup already exists: ${name}`);
 		if (!Object.hasOwn(settings.storageConnections, setup.storage.connection)) {
 			throw new Error(`Storage connection not found: ${setup.storage.connection}`);
+		}
+		if (
+			expectedConnection &&
+			!isDeepStrictEqual(settings.storageConnections[setup.storage.connection], expectedConnection)
+		) {
+			throw new SyncSetupReviewChangedError(
+				"Storage connection changed while the setup review was open; reopen it.",
+			);
 		}
 		const nextSetups = { ...settings.syncSetups, [name]: structuredClone(setup) };
 		assertUniqueLocations(nextSetups, settings.storageConnections);
@@ -115,6 +129,7 @@ export async function updateSyncSetup(
 	options: {
 		expectedStorage?: SyncSetupStorageReview;
 		expectedInclude?: readonly string[];
+		expectedConnection?: StorageConnectionSettings;
 		signal?: AbortSignal;
 	} = {},
 ) {
@@ -144,6 +159,17 @@ export async function updateSyncSetup(
 					`Sync setup “${name}” storage changed while it was open; reopen it and review the current storage location.`,
 				);
 			}
+		}
+		if (
+			options.expectedConnection &&
+			!isDeepStrictEqual(
+				settings.storageConnections[setup.storage.connection],
+				options.expectedConnection,
+			)
+		) {
+			throw new SyncSetupReviewChangedError(
+				"Storage connection changed while the setup review was open; reopen it.",
+			);
 		}
 		const nextSetup = update(structuredClone(setup));
 		if (!Object.hasOwn(settings.storageConnections, nextSetup.storage.connection)) {

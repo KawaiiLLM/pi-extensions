@@ -81,6 +81,13 @@ export async function showSyncManager(
 						label: "Storage connections…",
 						action: "connections",
 					},
+					{
+						id: "doctor",
+						label: "Check setup",
+						description:
+							"Check current setup access. WebDAV also probes writes and repairs history.",
+						action: "doctor",
+					},
 					{ id: "recovery", label: "History & recovery…", to: "recovery" },
 					{ id: "help", label: "Help", action: "help" },
 					{ id: "back", label: "Back", action: "back" },
@@ -92,7 +99,12 @@ export async function showSyncManager(
 				title: "History & recovery",
 				items: [
 					{ id: "history", label: "Browse history", action: "history" },
-					{ id: "doctor", label: "Check setup", action: "doctor" },
+					{
+						id: "doctor",
+						label: "Check setup",
+						description: "WebDAV also probes writes and repairs history.",
+						action: "doctor",
+					},
 					...(state.manager.operation && operationCanRecover(state.manager.operation)
 						? [{ id: "unlock", label: "Recover stale operation", action: "unlock" as const }]
 						: []),
@@ -218,8 +230,14 @@ export async function showSyncManager(
 				return { kind: "stay" };
 			},
 			doctor: async () => {
-				await runRoute("doctor");
-				return { kind: "stay" };
+				const result = await runCancellableOperation(
+					ctx,
+					"Checking setup access…",
+					"doctor",
+					runRoute,
+					{ signal: sessionSignal },
+				);
+				return { kind: result.kind === "closed" ? "close" : "stay" };
 			},
 			unlock: async ({ state, signal: actionSignal }) => {
 				const result = await recoverSyncAccess(
