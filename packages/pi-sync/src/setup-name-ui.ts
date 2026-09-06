@@ -1,6 +1,6 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { normalizeStoragePath, validateConfigName } from "./config.js";
-import { errorMessage, requiredInput, safeTerminalText } from "./manager-helpers.js";
+import { errorMessage, safeTerminalText } from "./manager-helpers.js";
 import { normalizeWebDavPath } from "./webdav-config.js";
 
 export async function promptInitialSetupName(
@@ -9,22 +9,19 @@ export async function promptInitialSetupName(
 	signal?: AbortSignal,
 ) {
 	while (!signal?.aborted) {
-		const name = await requiredInput(
-			ctx,
-			[
-				"Name this sync setup",
-				"",
-				"Examples: home, work, personal.",
-				"Also names the storage connection; no second name is needed.",
-				preset === "Git"
-					? "Git branch and storage path are chosen separately."
-					: "Used in the suggested storage path.",
-				"Sync content and automatic sync are chosen separately.",
-			].join("\n"),
-			"default",
-			signal,
-		);
-		if (!name) return undefined;
+		const hint = "For example: home or work. Leave blank for default.";
+		// Pi styles the whole input title as accent; give only the guidance a muted role.
+		const guidance = ctx.mode === "tui" ? ctx.ui.theme.fg("muted", hint) : hint;
+		// This compact prompt owns its default hint; the general helper would repeat it.
+		const value = await ctx.ui.input(`Sync setup name\n${guidance}`, undefined, { signal });
+		if (signal?.aborted) {
+			throw signal.reason instanceof Error
+				? signal.reason
+				: new DOMException("The operation was aborted", "AbortError");
+		}
+		if (value === undefined) return undefined;
+		const name = value.trim() || "default";
+		if (name.includes("<") || name.includes(">")) return undefined;
 		try {
 			validateConfigName(name, "sync setup");
 			// Validate the same suggestions the backend prompts will offer, without changing the name.

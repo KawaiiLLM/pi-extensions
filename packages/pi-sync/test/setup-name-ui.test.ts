@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { stripVTControlCharacters } from "node:util";
-import { ExtensionInputComponent, initTheme } from "@earendil-works/pi-coding-agent";
+import {
+	ExtensionInputComponent,
+	getSelectListTheme,
+	initTheme,
+} from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
@@ -13,43 +17,87 @@ import { withTempHome } from "./helpers.js";
 
 initTheme("dark", false);
 
-test.each([32, 80])("Pi core name input renders guidance within %s columns", async (width) => {
-	let lines: string[] = [];
-	let submitted = false;
+test.each([
+	{ width: 32, themeName: "dark" },
+	{ width: 80, themeName: "dark" },
+	{ width: 32, themeName: "light" },
+	{ width: 80, themeName: "light" },
+])(
+	"Pi core name input renders themed guidance at $width columns ($themeName)",
+	async ({ width, themeName }) => {
+		initTheme(themeName, false);
+		let lines: string[] = [];
+		let submitted = false;
+		const roles: string[] = [];
+		const colors = getSelectListTheme();
+		const { ctx } = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			theme: {
+				fg: (role: string, text: string) => {
+					roles.push(role);
+					return colors.description(text);
+				},
+			},
+			input: async (title: string, placeholder?: string) => {
+				let answer: string | undefined;
+				const input = new ExtensionInputComponent(
+					title,
+					placeholder,
+					(value) => {
+						submitted = true;
+						answer = value;
+					},
+					() => {},
+				);
+				try {
+					input.focused = true;
+					lines = input.render(width);
+					input.handleInput("\r");
+					return answer;
+				} finally {
+					input.dispose();
+				}
+			},
+		});
+		assert.equal(await promptInitialSetupName(ctx, "Git"), "default");
+		assert.equal(submitted, true);
+		assert.ok(lines.every((line) => visibleWidth(line) <= width));
+		const text = stripVTControlCharacters(lines.join(" ")).replace(/\s+/gu, " ");
+		assert.match(text, /Sync setup name/u);
+		assert.match(text, /For example: home or work\. Leave blank for default\./u);
+		assert.doesNotMatch(text, /Git branches|automatic sync/u);
+		const heading = lines.find((line) => line.includes("Sync setup name"));
+		const guidance = lines.find((line) => line.includes("For example:"));
+		const accent = colors.selectedText("sample").split("sample")[0];
+		const muted = colors.description("sample").split("sample")[0];
+		assert.deepEqual(roles, ["muted"]);
+		assert.ok(heading?.includes(`${accent}Sync setup name`));
+		assert.ok(guidance?.includes(`${muted}For example:`));
+		assert.notEqual(accent, muted);
+	},
+);
+
+test("RPC name input keeps guidance free of terminal styling", async () => {
+	let renderedTitle = "";
 	const { ctx } = createMockContext({
 		hasUI: true,
-		mode: "tui",
-		input: async (title: string, placeholder?: string) => {
-			let answer: string | undefined;
-			const input = new ExtensionInputComponent(
-				title,
-				placeholder,
-				(value) => {
-					submitted = true;
-					answer = value;
-				},
-				() => {},
-			);
-			try {
-				input.focused = true;
-				lines = input.render(width);
-				input.handleInput("\r");
-				return answer;
-			} finally {
-				input.dispose();
-			}
+		mode: "rpc",
+		theme: {
+			fg: () => {
+				throw new Error("RPC must not style input titles");
+			},
+		},
+		input: async (title: string) => {
+			renderedTitle = title;
+			return "";
 		},
 	});
 	assert.equal(await promptInitialSetupName(ctx, "Git"), "default");
-	assert.equal(submitted, true);
-	assert.ok(lines.every((line) => visibleWidth(line) <= width));
-	const text = stripVTControlCharacters(lines.join(" ")).replace(/\s+/gu, " ");
-	assert.match(text, /Name this sync setup/u);
-	assert.match(text, /Examples: home, work, personal\./u);
-	assert.match(text, /Default: default \(leave blank to keep\)/u);
-	assert.match(text, /Also names the storage connection; no second name is needed\./u);
-	assert.match(text, /Git branch and storage path are chosen separately\./u);
-	assert.match(text, /Sync content and automatic sync are chosen separately\./u);
+	assert.equal(
+		renderedTitle,
+		"Sync setup name\nFor example: home or work. Leave blank for default.",
+	);
 });
 
 test("Pi core name input cancellation does not accept the default", async () => {
@@ -145,9 +193,9 @@ test.each(invalidCases)(
 			});
 			assert.equal(await showSetupWizard(ctx), false);
 			assert.equal(titles.length, 3);
-			assert.match(titles[0], /^Name this sync setup/u);
+			assert.match(titles[0], /^Sync setup name/u);
 			assert.equal(titles[1], titles[0]);
-			assert.doesNotMatch(titles[2], /^Name this sync setup/u);
+			assert.doesNotMatch(titles[2], /^Sync setup name/u);
 			assert.equal(selectCalls, 1);
 			assert.equal(notifications.length, 1);
 			assert.equal(notifications[0].level, "warning");
@@ -192,7 +240,7 @@ test.each(validCases)("$preset accepts backend-valid name $name", async ({ prese
 		});
 		assert.equal(await showSetupWizard(ctx), false);
 		assert.equal(titles.length, 2);
-		assert.doesNotMatch(titles[1], /^Name this sync setup/u);
+		assert.doesNotMatch(titles[1], /^Sync setup name/u);
 		assert.deepEqual(notifications, []);
 	});
 });
