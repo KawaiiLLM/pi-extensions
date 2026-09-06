@@ -95,11 +95,10 @@ test.each([
 			bucket: "pi-sync",
 			path: `pi-sync/${name}`,
 		});
-		assert.match(inputTitles[0], /^Name this sync setup\n/u);
-		assert.match(inputTitles[0], /Examples: home, work, personal/u);
-		assert.match(inputTitles[0], /Leave blank to use default/u);
-		assert.match(inputTitles[0], /suggested storage paths and Git branches/u);
-		assert.match(inputTitles[0], /Sync content and automatic sync are chosen separately/u);
+		assert.equal(
+			inputTitles[0],
+			"Sync setup name\nFor example: home or work. Leave blank for default.",
+		);
 		assert.deepEqual(inputTitles.slice(1), ["Cloudflare R2 endpoint", "Access key ID"]);
 		assert.ok(rendered.join("\n").includes(`Storage location: pi-sync/${name}`));
 		assert.doesNotMatch(rendered.join("\n"), /What will this sync setup be used for/u);
@@ -223,7 +222,7 @@ test.each(["Cloudflare R2", "Other S3-compatible storage", "WebDAV", "Git"])(
 			assert.equal(await showSetupWizard(ctx), false);
 			assert.equal(selections.length, 1);
 			assert.equal(inputs.length, 1);
-			assert.match(inputs[0], /^Name this sync setup\n/u);
+			assert.match(inputs[0], /^Sync setup name\n/u);
 			assert.equal(await readLocalConfigObject(), undefined);
 			assert.equal(existsSync(path.join(agentDir, "pi-sync")), false);
 			assert.equal(existsSync(path.join(agentDir, ".pisync")), false);

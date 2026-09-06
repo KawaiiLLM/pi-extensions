@@ -10,18 +10,10 @@ export async function promptInitialSetupName(
 	signal?: AbortSignal,
 ) {
 	while (!signal?.aborted) {
-		const name = await requiredInput(
-			ctx,
-			[
-				"Name this sync setup",
-				"",
-				"Examples: home, work, personal. Leave blank to use default.",
-				"Used in suggested storage paths and Git branches.",
-				"Sync content and automatic sync are chosen separately.",
-			].join("\n"),
-			"default",
-			signal,
-		);
+		const hint = "For example: home or work. Leave blank for default.";
+		// Pi styles the whole input title as accent; give only the guidance a muted role.
+		const guidance = ctx.mode === "tui" ? ctx.ui.theme.fg("muted", hint) : hint;
+		const name = await requiredInput(ctx, `Sync setup name\n${guidance}`, "default", signal);
 		if (!name) return undefined;
 		try {
 			validateConfigName(name, "sync setup");
