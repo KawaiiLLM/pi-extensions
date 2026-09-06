@@ -67,7 +67,12 @@ for (const kind of ["git", "webdav", "s3", "r2"]) {
 				assert.equal((await loadConfig("work")).automatic, automatic);
 				assert.equal((await loadConfig()).setupName, "home");
 				assert.equal((await loadConfig("work")).include.includes("sessions"), false);
-				assert.match(frames.join("\n"), automatic ? /Automatic sync: On/u : /Automatic sync: Off/u);
+				assert.match(
+					frames.join("\n"),
+					automatic
+						? /Automatic sync: On \(startup check; shutdown pushes selected content if sessions included\)/u
+						: /Automatic sync: Off/u,
+				);
 			});
 		},
 	);

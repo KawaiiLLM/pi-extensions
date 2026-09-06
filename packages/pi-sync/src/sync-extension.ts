@@ -50,7 +50,8 @@ export default function sync(pi: ExtensionAPI, dependencies: Partial<SyncDepende
 			}
 			const run = () => handleCommand(args, ctx, signal, loaders, attention);
 			// Drain background cache/child cleanup before entering any foreground guard.
-			if (command === "migrate-state") await run();
+			// Help must remain reachable when the state roots themselves need repair.
+			if (command === "migrate-state" || command === "help") await run();
 			else await withStateDirectoryAccess(run);
 		},
 	});

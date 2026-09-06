@@ -12,6 +12,7 @@ import {
 	updateSyncSetup,
 } from "../../settings/settings-management.js";
 import type { PartialConfig } from "../../settings/settings-types.js";
+import { automaticSyncSummary } from "../automatic-sync-summary.js";
 import { safeTerminalText } from "../terminal-text.js";
 import { promptAvailableSetupStorage } from "./setup-location-ui.js";
 import {
@@ -47,7 +48,7 @@ export async function showGitSetup(
 			`Sync branch: ${safeTerminalText(destination.branch)}`,
 			`Storage location: ${safeTerminalText(destination.directory)}`,
 			...includedContentLines(include),
-			`Automatic sync: ${automatic ? "On (startup check only)" : "Off"}`,
+			`Automatic sync: ${automaticSyncSummary(automatic)}`,
 			"Authentication: existing Git credential helper or SSH configuration (not stored by pi-sync).",
 			"pi-sync manages the entire branch. The repository must already exist; a new branch is created on first push.",
 			"Saving does not contact remote storage or start syncing.",
@@ -175,7 +176,7 @@ export async function showAddGitTarget(
 			`Sync branch: ${safeTerminalText(storage.branch)}`,
 			`Storage location: ${safeTerminalText(storage.path)}`,
 			...includedContentLines(include),
-			`Automatic sync: ${automatic ? "On (startup check only)" : "Off"}`,
+			`Automatic sync: ${automaticSyncSummary(automatic)}`,
 			"pi-sync manages the entire branch. Adding this setup does not sync or modify remote data.",
 		],
 		"Add sync setup",

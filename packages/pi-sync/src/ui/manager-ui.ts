@@ -1,7 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { type ActionMenuItem, defineMenu, runMenu } from "@narumitw/pi-tui-kit";
 import { loadConfig } from "../settings/config.js";
-import { operationCanRecover } from "../state/operation-availability.js";
+import { operationBlocksChanges, operationCanRecover } from "../state/operation-availability.js";
 import { type RunRoute, runCancellableOperation } from "./cancellable-operation.js";
 import {
 	attentionMainMenuItems,
@@ -133,7 +133,8 @@ export async function showSyncManager(
 						options.onObservationInvalidated?.();
 						return { kind: "stay" };
 					}
-					options.onObservationInvalidated?.();
+					// Keep the check-time hint on cancellation or failure. Route commits and
+					// the manager's config/baseline reconciliation own invalidation.
 					const result = await showRemoteSelectionReview(
 						ctx,
 						observation.setupName,
@@ -316,7 +317,13 @@ export async function showSyncManager(
 				observation,
 			);
 			if (sessionSignal?.aborted) return { manager };
-			if (observation && options.getObservation?.() === observation && !manager.observation) {
+			// A busy operation suppresses baseline reads, not the stored check-time hint.
+			if (
+				observation &&
+				options.getObservation?.() === observation &&
+				!manager.observation &&
+				!(manager.operation && operationBlocksChanges(manager.operation))
+			) {
 				options.onObservationInvalidated?.();
 			}
 			if (pendingAttention && options.getAttention?.() === pendingAttention && !manager.attention) {

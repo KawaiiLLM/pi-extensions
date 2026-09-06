@@ -6,6 +6,7 @@ import type { AnySyncConfig } from "../../settings/settings-types.js";
 import { ownRecord } from "../../settings/settings-validation.js";
 import { useSyncSetup } from "../../sync/setup-switch.js";
 import { errorMessage } from "../../sync/sync-errors.js";
+import { automaticSyncSummary } from "../automatic-sync-summary.js";
 import { type RunRoute, runCancellableOperation } from "../cancellable-operation.js";
 import { dispatchManagerResult } from "../manager-result-dispatcher.js";
 import { backendStorageDescription } from "../manager-state.js";
@@ -130,7 +131,7 @@ export async function showSetupSwitcher(
 			`To: ${safeTerminalText(name)}`,
 			`Storage: ${backendStorageDescription(config)}`,
 			`Included content: ${config.include.length} paths`,
-			`Automatic sync: ${config.automatic ? "On (startup check only)" : "Off"} · Sessions: ${config.include.includes("sessions") ? "On" : "Off"}`,
+			`Automatic sync: ${automaticSyncSummary(config.automatic)} · Sessions: ${config.include.includes("sessions") ? "On" : "Off"}`,
 			"",
 			switchEffect,
 		].join("\n"),

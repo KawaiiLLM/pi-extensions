@@ -12,6 +12,7 @@ import {
 	updateSyncSetup,
 } from "../../settings/settings-management.js";
 import type { PartialConfig } from "../../settings/settings-types.js";
+import { automaticSyncSummary } from "../automatic-sync-summary.js";
 import { promptSecret } from "../secret-input.js";
 import { safeTerminalText as safe } from "../terminal-text.js";
 import { promptAvailableSetupStorage } from "./setup-location-ui.js";
@@ -56,7 +57,7 @@ export async function showWebDavSetup(
 			`Storage location: ${safe(remotePath)}`,
 			"Username and password: stored privately (values hidden)",
 			...includedContentLines(include, sessions),
-			`Automatic sync: ${automatic ? "On (startup check only)" : "Off"}`,
+			`Automatic sync: ${automaticSyncSummary(automatic)}`,
 			"Check setup tests whether this server can safely save sync updates using a temporary probe.",
 			"Saving does not contact remote storage or start syncing.",
 		],
@@ -110,7 +111,7 @@ export async function showAddWebDavTarget(
 			`URL: ${safe(connection.url)}`,
 			`Storage location: ${safe(storage.path)}`,
 			...includedContentLines(include),
-			`Automatic sync: ${automatic ? "On (startup check only)" : "Off"}`,
+			`Automatic sync: ${automaticSyncSummary(automatic)}`,
 			"Adding this setup does not sync or modify remote data.",
 		],
 		"Add sync setup",

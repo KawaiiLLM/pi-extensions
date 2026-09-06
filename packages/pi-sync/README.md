@@ -67,7 +67,7 @@ The `/sync` manager shows local state without contacting remote storage:
 Current sync setup: home
 Storage: Cloudflare R2 · r2 · personal-pi
 Included: 5 built-in groups · 0 extra files · Sessions off
-Automatic sync: On (startup check only)
+Automatic sync: On (startup check; shutdown pushes selected content if sessions included)
 Remote status: Not checked
 ```
 
@@ -133,7 +133,7 @@ Back returns to the sync manager, and Ctrl+C closes the complete flow.
 
 Startup checks never open a dialog. Detected changes leave a compact hint above the editor; open `/sync` when ready. An included-content mismatch puts **Review synced content (recommended)** in the manager, where a fresh review verifies the remote snapshot before offering changes.
 Check results are advisory observations against the last sync baseline, not proof of a file conflict or current equality. Opening the manager uses local information and shows when the check completed; it does not contact remote storage. Transfer actions recheck current content.
-Attention stays in memory and is invalidated by relevant settings/state changes or foreground transfers, and cleared on session replacement or shutdown.
+Attention stays in memory and is invalidated by relevant settings/state changes or a foreground transfer's commit boundary, and cleared on session replacement or shutdown. Cancelling a review or a failure before commit preserves a still-valid hint.
 
 Interactive TUI `/sync sync`, `/sync pull`, and `/sync push` routes without `--yes` open the same review flow when they detect the mismatch.
 Explicit `--yes` routes remain non-interactive and report exact remote-only, device-only, or order-only guidance while leaving visible attention for later review.

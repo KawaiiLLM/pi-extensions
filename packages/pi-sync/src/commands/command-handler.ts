@@ -26,23 +26,15 @@ export async function handleCommand(
 ) {
 	await reconcileObservation(attention, sessionSignal);
 	if (sessionSignal.aborted) return;
-	const run = (route: string, signal?: AbortSignal, onCommit?: () => void, target?: string) => {
-		if (
-			["sync", "pull", "push", "rollback", "use", "init", "migrate-state"].includes(
-				splitArgs(route)[0] ?? "",
-			)
-		) {
-			attention.clearObservation();
-		}
-		return executeCommand(
+	const run = (route: string, signal?: AbortSignal, onCommit?: () => void, target?: string) =>
+		executeCommand(
 			route,
 			ctx,
 			combineSignals(sessionSignal, signal),
 			loaders,
-			onCommit,
+			observationCommitCallback(attention, sessionSignal, onCommit),
 			target,
 		);
-	};
 	if (!rawArgs.trim()) {
 		try {
 			const { showSyncManager } = await import("../ui/manager-ui.js");
@@ -88,6 +80,21 @@ export async function handleCommand(
 	await reconcileSelectionAttention(ctx, attention, sessionSignal);
 	await reconcileObservation(attention, sessionSignal);
 	if (!sessionSignal.aborted) attention.publish(ctx);
+}
+
+function observationCommitCallback(
+	attention: SyncAttentionController,
+	sessionSignal: AbortSignal,
+	onCommit?: () => void,
+) {
+	const observed = attention.observation();
+	return () => {
+		// Opening or cancelling a review changes nothing. A commit may change data
+		// even if later publication/baseline cleanup fails; never restore old hints.
+		if (!sessionSignal.aborted && attention.observation() === observed)
+			attention.clearObservation();
+		onCommit?.();
+	};
 }
 
 async function reconcileObservation(attention: SyncAttentionController, signal: AbortSignal) {
@@ -177,7 +184,7 @@ export async function resolveSelectionAttention(
 					ctx,
 					combineSignals(signal, actionSignal),
 					loaders,
-					onCommit,
+					observationCommitCallback(attention, signal, onCommit),
 					target,
 				);
 			return options.withStateAccess ? options.withStateAccess(execute) : execute();

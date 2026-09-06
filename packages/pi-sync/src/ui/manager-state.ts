@@ -14,6 +14,7 @@ import { readStateForConfig, syncStateFingerprint } from "../state/sync-state-st
 import { errorMessage } from "../sync/sync-errors.js";
 import type { StartupObservation } from "../sync/sync-inspection.js";
 import { compareSyncInclude, syncIncludeSelection } from "../sync/sync-policy.js";
+import { automaticSyncSummary } from "./automatic-sync-summary.js";
 import {
 	observationMatchesConfig,
 	observationSummary,
@@ -136,7 +137,7 @@ export async function describeManagerState(
 			`Current sync setup: ${safeTerminalText(config.setupName)}`,
 			`Storage: ${backendStorageDescription(config)}`,
 			`Included: ${selection.builtIns.length} built-in group${selection.builtIns.length === 1 ? "" : "s"} · ${selection.custom.length} extra path${selection.custom.length === 1 ? "" : "s"} · Sessions ${selection.sessions ? "on" : "off"}`,
-			`Automatic sync: ${config.automatic ? "On (startup check only)" : "Off"}`,
+			`Automatic sync: ${automaticSyncSummary(config.automatic)}`,
 			`Last applied: ${lastAppliedSnapshot}`,
 			...(currentAttention
 				? [
