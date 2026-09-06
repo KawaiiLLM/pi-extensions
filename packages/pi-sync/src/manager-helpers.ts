@@ -31,7 +31,7 @@ export async function requiredInput(
 	defaultValue: string,
 	signal?: AbortSignal,
 ) {
-	return promptValue(ctx, title, { defaultValue }, signal);
+	return withoutPlaceholder(await promptTextInput(ctx, title, { defaultValue }, signal));
 }
 
 export async function requiredValueInput(
@@ -40,10 +40,11 @@ export async function requiredValueInput(
 	example: string,
 	signal?: AbortSignal,
 ) {
-	return promptValue(ctx, title, { example }, signal);
+	return withoutPlaceholder(await promptTextInput(ctx, title, { example }, signal));
 }
 
-async function promptValue(
+// Text collection does not impose backend-specific syntax; callers validate the returned value.
+export async function promptTextInput(
 	ctx: ExtensionCommandContext,
 	title: string,
 	options: { defaultValue?: string; example?: string },
@@ -67,7 +68,12 @@ async function promptValue(
 		ctx.ui.notify(`${title.split("\n")[0]} is required.`, "warning");
 		return undefined;
 	}
-	return normalized.includes("<") || normalized.includes(">") ? undefined : normalized;
+	return normalized;
+}
+
+function withoutPlaceholder(value: string | undefined) {
+	// Preserve the existing Git/S3 placeholder policy; WebDAV permits literal angle brackets.
+	return value?.includes("<") || value?.includes(">") ? undefined : value;
 }
 
 export function storageDescription(

@@ -8,6 +8,7 @@ import {
 	updateStorageConnection,
 	updateSyncSetup,
 } from "./settings-management.js";
+import { promptAvailableSetupStorage } from "./setup-location-ui.js";
 import { DEFAULT_SYNC_INCLUDE } from "./sync-policy.js";
 import type { PartialConfig } from "./types.js";
 
@@ -156,8 +157,15 @@ export async function showAddGitTarget(
 	profile: string,
 	signal?: AbortSignal,
 ) {
-	const destination = await promptGitDestination(ctx, signal);
-	if (!destination) return false;
+	const selected = await promptGitDestination(ctx, signal);
+	if (!selected) return false;
+	const storage = await promptAvailableSetupStorage(
+		ctx,
+		{ connection: profile, branch: selected.branch, path: selected.directory },
+		signal,
+	);
+	if (!storage) return false;
+	const destination = { branch: storage.branch, directory: storage.path };
 	const preset = await ctx.ui.select(
 		"Choose included content",
 		["Recommended Pi settings", "Minimal settings", "Cancel"],

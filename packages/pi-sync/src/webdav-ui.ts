@@ -1,5 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { requiredInput, requiredValueInput } from "./manager-helpers.js";
+import { promptTextInput } from "./manager-helpers.js";
 import { promptSecret } from "./secret-input.js";
 import {
 	addStorageConnection,
@@ -8,6 +8,7 @@ import {
 	updateStorageConnection,
 	updateSyncSetup,
 } from "./settings-management.js";
+import { promptAvailableSetupStorage } from "./setup-location-ui.js";
 import { DEFAULT_SYNC_INCLUDE } from "./sync-policy.js";
 import type { PartialConfig } from "./types.js";
 import {
@@ -23,7 +24,7 @@ export async function showWebDavSetup(
 ) {
 	const url = await promptWebDavUrl(ctx, signal);
 	if (!url) return false;
-	const username = await requiredValueInput(ctx, "WebDAV username", "user", signal);
+	const username = await promptTextInput(ctx, "WebDAV username", { example: "user" }, signal);
 	if (!username) return false;
 	const password = await awaitActive(signal, promptSecret(ctx, "WebDAV password", { signal }));
 	if (password === undefined) return false;
@@ -98,7 +99,11 @@ export async function showAddWebDavTarget(
 ) {
 	const location = await chooseDestination(ctx, signal);
 	if (!location) return false;
-	const destination = validateDestination(ctx, location.path);
+	const destination = await promptAvailableSetupStorage(
+		ctx,
+		{ connection: profile, path: location.path },
+		signal,
+	);
 	if (!destination) return false;
 	const content = await chooseContent(ctx, signal);
 	if (!content) return false;
@@ -130,7 +135,12 @@ export async function showEditWebDavTarget(
 	partial: PartialConfig,
 	signal?: AbortSignal,
 ) {
-	const remotePath = await requiredInput(ctx, WEBDAV_PATH_TITLE, partial.storagePath, signal);
+	const remotePath = await promptTextInput(
+		ctx,
+		WEBDAV_PATH_TITLE,
+		{ defaultValue: partial.storagePath },
+		signal,
+	);
 	if (!remotePath) return false;
 	const destination = validateDestination(ctx, remotePath);
 	if (!destination) return false;
@@ -161,11 +171,16 @@ export async function showAddWebDavStorageProfile(
 	ctx: ExtensionCommandContext,
 	signal?: AbortSignal,
 ) {
-	const name = await requiredInput(ctx, "Name this storage connection", "webdav", signal);
+	const name = await promptTextInput(
+		ctx,
+		"Name this storage connection",
+		{ defaultValue: "webdav" },
+		signal,
+	);
 	if (!name) return false;
 	const url = await promptWebDavUrl(ctx, signal);
 	if (!url) return false;
-	const username = await requiredValueInput(ctx, "WebDAV username", "user", signal);
+	const username = await promptTextInput(ctx, "WebDAV username", { example: "user" }, signal);
 	if (!username) return false;
 	const password = await awaitActive(signal, promptSecret(ctx, "WebDAV password", { signal }));
 	if (password === undefined) return false;
@@ -208,10 +223,10 @@ export async function showEditWebDavStorageProfile(
 		typeof profile.url === "string" ? profile.url : undefined,
 	);
 	if (!url) return false;
-	const username = await requiredValueInput(
+	const username = await promptTextInput(
 		ctx,
 		"WebDAV username\n\nEnter the account username; the stored value is hidden.",
-		"user",
+		{ example: "user" },
 		signal,
 	);
 	if (!username) return false;
@@ -272,7 +287,7 @@ export async function showEditWebDavStorageProfile(
 }
 
 async function chooseDestination(ctx: ExtensionCommandContext, signal?: AbortSignal) {
-	const remotePath = await requiredInput(ctx, WEBDAV_PATH_TITLE, "./", signal);
+	const remotePath = await promptTextInput(ctx, WEBDAV_PATH_TITLE, { defaultValue: "./" }, signal);
 	return remotePath ? validateDestination(ctx, remotePath) : undefined;
 }
 
@@ -314,9 +329,14 @@ async function promptWebDavUrl(
 ) {
 	const title =
 		"WebDAV collection URL\n\nUse the HTTPS WebDAV URL from your provider, not its web login page.";
-	return current
-		? requiredInput(ctx, title, current, signal)
-		: requiredValueInput(ctx, title, "https://cloud.example.com/remote.php/dav/files/user", signal);
+	return promptTextInput(
+		ctx,
+		title,
+		current
+			? { defaultValue: current }
+			: { example: "https://cloud.example.com/remote.php/dav/files/user" },
+		signal,
+	);
 }
 
 async function select(

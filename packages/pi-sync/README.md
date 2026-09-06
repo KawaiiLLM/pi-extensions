@@ -47,6 +47,7 @@ Remote URLs, endpoints, usernames, and credentials require your own values, not 
 All new setups default to storage path `./`: the Git repository root, the WebDAV collection URL, or the selected R2/S3 bucket root.
 Git also suggests branch `main`.
 Use different folders or prefixes for independent setups sharing a WebDAV collection or bucket; existing settings and paths are unchanged.
+If another configured setup already uses the chosen location, setup asks for a different path before the content selection and review; Git requires a different branch, even when the directory differs.
 Before saving, review the storage connection, exact remote path, included content, automatic-sync choice, and masked credentials.
 
 Buckets and remote repositories must already exist.
