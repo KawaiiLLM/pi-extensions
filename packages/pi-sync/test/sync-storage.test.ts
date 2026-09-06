@@ -7,16 +7,13 @@ import { gunzipSync } from "node:zlib";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import { test } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
-import {
-	configuredSessionDir,
-	ensureStateDir,
-	loadPartialConfig,
-	localConfigPath,
-	lockPath,
-	readState,
-} from "../src/config.js";
-import { lockFileExists, readLock, withLock } from "../src/lock.js";
-import { S3Client } from "../src/s3-client.js";
+import { S3Client } from "../src/backends/s3/s3-client.js";
+import { loadPartialConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { configuredSessionDir } from "../src/snapshot/session-paths.js";
+import { lockFileExists, readLock, withLock } from "../src/state/lock.js";
+import { ensureStateDir, lockPath, readState } from "../src/state/sync-state-store.js";
+import { backupLocal } from "../src/sync/sync-operations.js";
 import sync, {
 	appliedFileHashMap,
 	canPullRemoteSessionsOnFirstSync,
@@ -35,7 +32,6 @@ import sync, {
 	settingsHashMap,
 	snapshotWithoutSessions,
 } from "../src/sync.js";
-import { backupLocal } from "../src/sync-operations.js";
 
 import {
 	requiredConfig,

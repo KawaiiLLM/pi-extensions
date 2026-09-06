@@ -1,6 +1,6 @@
 import { rmSync } from "node:fs";
 import path from "node:path";
-import { GitSyncBackend } from "../src/git-backend.js";
+import { GitSyncBackend } from "../src/backends/git/git-backend.js";
 import { registerSyncBackendContractSuite } from "./backend-contract-suite.js";
 import { createBareRemote, gitConfig } from "./git-test-helpers.js";
 

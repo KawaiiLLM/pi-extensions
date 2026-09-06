@@ -2,19 +2,17 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import {
-	loadConfig,
-	localConfigPath,
-	readLocalConfigObject,
-	updateLocalConfig,
-} from "../src/config.js";
-import { showSyncManager } from "../src/manager-ui.js";
+import { loadConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
 import {
 	addSyncSetup,
 	updateStorageConnection,
 	updateSyncSetup,
-} from "../src/settings-management.js";
-import { errorMessage, redact } from "../src/sync-format.js";
+} from "../src/settings/settings-management.js";
+import { readLocalConfigObject, updateLocalConfig } from "../src/settings/settings-store.js";
+import { errorMessage } from "../src/sync/sync-errors.js";
+import { showSyncManager } from "../src/ui/manager-ui.js";
+import { redact } from "../src/ui/sync-format.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 test("shared connection edits reject a stale dependent-setup preview", async () => {

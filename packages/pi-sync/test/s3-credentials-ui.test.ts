@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import { localConfigPath, readLocalConfigObject } from "../src/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { readLocalConfigObject } from "../src/settings/settings-store.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 const credentials = {
@@ -14,7 +15,7 @@ const credentials = {
 test("keeping S3 credentials preserves the session token and unknown fields", async () => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
-		const { showStorageConnections } = await import("../src/storage-connections-ui.js");
+		const { showStorageConnections } = await import("../src/ui/storage-connections-ui.js");
 		const settings = v3S3Settings();
 		Object.assign(settings.storageConnections.r2.credentials, credentials, { future: "preserved" });
 		writeFileSync(localConfigPath(), JSON.stringify(settings), { mode: 0o600 });

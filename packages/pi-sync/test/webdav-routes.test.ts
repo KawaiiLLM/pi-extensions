@@ -3,8 +3,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
-import { localConfigPath } from "../src/config.js";
-import syncExtension from "../src/sync.js";
+import type { CommandOptions } from "../src/commands/command-types.js";
+import { localConfigPath } from "../src/settings/config-file.js";
 import {
 	diff,
 	doctor,
@@ -14,8 +14,8 @@ import {
 	rollback,
 	status,
 	syncBoth,
-} from "../src/sync-operations.js";
-import type { CommandOptions } from "../src/types.js";
+} from "../src/sync/sync-operations.js";
+import syncExtension from "../src/sync.js";
 import { withTempHome } from "./helpers.js";
 import { MockWebDavServer } from "./mock-webdav-server.js";
 

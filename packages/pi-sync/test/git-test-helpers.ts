@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { ResolvedGitBackend } from "../src/types.js";
+import type { ResolvedGitBackend } from "../src/backends/backend-types.js";
 
 export function gitConfig(remote: string): ResolvedGitBackend {
 	return {

@@ -12,15 +12,12 @@ import {
 	createMockContext,
 	createMockPi,
 } from "../../../test/support.js";
+import { loadConfig } from "../src/settings/config.js";
 import {
-	configuredSyncSetupNames,
-	loadConfig,
 	localConfigPath,
-	readLocalConfigObject,
-	updateLocalConfig,
-} from "../src/config.js";
-import { withConfigFilePublicationForTest, withLocalConfigFileLock } from "../src/config-file.js";
-import { showSetupWizard } from "../src/manager-ui.js";
+	withConfigFilePublicationForTest,
+	withLocalConfigFileLock,
+} from "../src/settings/config-file.js";
 import {
 	addStorageConnection,
 	addSyncSetup,
@@ -28,11 +25,17 @@ import {
 	removeSyncSetup,
 	updateStorageConnection,
 	updateSyncSetup,
-} from "../src/settings-management.js";
-import { showSyncSettings } from "../src/settings-ui.js";
-import { SetupPullRequiresUiError, useSyncSetup } from "../src/setup-switch.js";
-import { showStorageConnections } from "../src/storage-connections-ui.js";
+} from "../src/settings/settings-management.js";
+import {
+	configuredSyncSetupNames,
+	readLocalConfigObject,
+	updateLocalConfig,
+} from "../src/settings/settings-store.js";
+import { SetupPullRequiresUiError, useSyncSetup } from "../src/sync/setup-switch.js";
 import sync from "../src/sync.js";
+import { showSyncSettings } from "../src/ui/settings-ui.js";
+import { showSetupWizard } from "../src/ui/setup/setup-wizard.js";
+import { showStorageConnections } from "../src/ui/storage-connections-ui.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 initTheme("dark", false);
@@ -579,7 +582,7 @@ test("cross-process settings mutations serialize under one read-modify-write loc
 		const configModule = pathToFileURL(
 			path.join(
 				process.cwd(),
-				"node_modules/.cache/pi-extensions-test/packages/pi-sync/src/config.js",
+				"node_modules/.cache/pi-extensions-test/packages/pi-sync/src/settings/settings-store.js",
 			),
 		).href;
 		const mutate = (field: string) =>

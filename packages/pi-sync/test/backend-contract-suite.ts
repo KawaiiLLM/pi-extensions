@@ -4,7 +4,7 @@ import {
 	expectedRemoteHead,
 	type SyncBackend,
 	SyncBackendConflictError,
-} from "../src/sync-backend.js";
+} from "../src/backends/sync-backend.js";
 import { snapshot } from "./helpers.js";
 
 interface BackendFixture {

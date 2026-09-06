@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
-import { loadConfig, localConfigPath, statePathForConfig } from "../src/config.js";
-import { addSyncSetup } from "../src/settings-management.js";
-import { normalizeWebDavPath } from "../src/webdav-config.js";
+import { normalizeWebDavPath } from "../src/backends/webdav/webdav-config.js";
+import { loadConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { addSyncSetup } from "../src/settings/settings-management.js";
+import { statePathForConfig } from "../src/state/sync-state-store.js";
 import { createSyncBackend } from "./backend-factory-eager.js";
 import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
 

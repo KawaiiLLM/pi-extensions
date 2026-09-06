@@ -7,15 +7,15 @@ import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
 import {
 	loadConfig,
-	localConfigPath,
 	syncConfigReviewFingerprint,
 	syncConfigReviewIdentity,
-	updateLocalConfig,
-} from "../src/config.js";
-import { dispatchManagerResult } from "../src/manager-result-dispatcher.js";
-import { showSyncManager } from "../src/manager-ui.js";
-import type { SyncDecision } from "../src/sync-decision.js";
-import { showSyncResolution } from "../src/sync-resolution-ui.js";
+} from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { updateLocalConfig } from "../src/settings/settings-store.js";
+import type { SyncDecision } from "../src/sync/sync-decision.js";
+import { dispatchManagerResult } from "../src/ui/manager-result-dispatcher.js";
+import { showSyncManager } from "../src/ui/manager-ui.js";
+import { showSyncResolution } from "../src/ui/sync-resolution-ui.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 initTheme("dark", false);

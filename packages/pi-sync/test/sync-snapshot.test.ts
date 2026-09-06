@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import { test } from "vitest";
-import { createSnapshot } from "../src/snapshot.js";
-import { applySnapshot } from "../src/snapshot-apply.js";
+import { createSnapshot } from "../src/snapshot/snapshot.js";
+import { applySnapshot } from "../src/snapshot/snapshot-apply.js";
 import {
 	addTopLevelCaseVariantDeletes,
 	collectFiles,

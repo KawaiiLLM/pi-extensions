@@ -1,4 +1,4 @@
-import { WebDavSyncBackend } from "../src/webdav-backend.js";
+import { WebDavSyncBackend } from "../src/backends/webdav/webdav-backend.js";
 import { registerSyncBackendContractSuite } from "./backend-contract-suite.js";
 import { MockWebDavServer, webDavConfig } from "./mock-webdav-server.js";
 

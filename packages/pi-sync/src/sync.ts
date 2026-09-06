@@ -1,12 +1,12 @@
-export { completeSyncArguments, parseOptions, splitArgs } from "./command.js";
+export { completeSyncArguments, parseOptions, splitArgs } from "./commands/command.js";
+export { encodeKey, posixJoin, safeJoin, safeName } from "./paths.js";
 export {
-	isCloudflareR2Endpoint,
 	isEnabled,
 	isExplicitlyEnabled,
 	loadConfig,
 	sessionTokenWarnings,
-} from "./config.js";
-export { encodeKey, posixJoin, safeJoin, safeName } from "./paths.js";
+} from "./settings/config.js";
+export { isCloudflareR2Endpoint } from "./settings/settings-validation.js";
 export {
 	canonicalSnapshotPathForConfig,
 	collectFiles,
@@ -19,14 +19,13 @@ export {
 	scanSnapshot,
 	sessionSnapshotPathFromAbsolute,
 	snapshotWithoutSessions,
-} from "./snapshot.js";
+} from "./snapshot/snapshot.js";
 export {
 	addTopLevelCaseVariantDeletes,
 	appliedFileHashMap,
 	preflightSnapshotApply,
 	protectSnapshotApplyPlan,
-} from "./snapshot-apply.js";
-export { default, type SyncDependencies } from "./sync-extension.js";
+} from "./snapshot/snapshot-apply.js";
 export {
 	canPullRemoteSessionsOnFirstSync,
 	canPullRemoteSettingsOnFirstSync,
@@ -35,4 +34,5 @@ export {
 	settingsHashesMatchState,
 	settingsHashMap,
 	settingsHashMapFromState,
-} from "./sync-state.js";
+} from "./sync/sync-state.js";
+export { default, type SyncDependencies } from "./sync-extension.js";

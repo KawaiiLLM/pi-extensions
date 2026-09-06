@@ -2,20 +2,16 @@ import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import {
-	loadConfig,
-	loadPartialConfig,
-	localConfigPath,
-	readLocalConfigObject,
-	updateLocalConfig,
-} from "../src/config.js";
+import { loadConfig, loadPartialConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { readLocalConfigObject, updateLocalConfig } from "../src/settings/settings-store.js";
 import {
 	showAddGitStorageProfile,
 	showAddGitTarget,
 	showEditGitTarget,
 	showGitSetup,
-} from "../src/git-ui.js";
-import { showStorageConnections } from "../src/storage-connections-ui.js";
+} from "../src/ui/setup/git-ui.js";
+import { showStorageConnections } from "../src/ui/storage-connections-ui.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 for (const remote of [

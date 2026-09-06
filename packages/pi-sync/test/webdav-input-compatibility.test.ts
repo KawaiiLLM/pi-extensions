@@ -5,20 +5,17 @@ import { initTheme } from "@earendil-works/pi-coding-agent";
 import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import {
-	loadConfig,
-	loadPartialConfig,
-	localConfigPath,
-	readLocalConfigObject,
-} from "../src/config.js";
-import { WebDavClient } from "../src/webdav-client.js";
+import { WebDavClient } from "../src/backends/webdav/webdav-client.js";
+import { loadConfig, loadPartialConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { readLocalConfigObject } from "../src/settings/settings-store.js";
 import {
 	showAddWebDavStorageProfile,
 	showAddWebDavTarget,
 	showEditWebDavStorageProfile,
 	showEditWebDavTarget,
 	showWebDavSetup,
-} from "../src/webdav-ui.js";
+} from "../src/ui/setup/webdav-ui.js";
 import { v3WebDavSettings, withTempHome } from "./helpers.js";
 
 initTheme("dark", false);

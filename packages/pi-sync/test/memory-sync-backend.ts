@@ -8,8 +8,8 @@ import {
 	type SyncBackend,
 	SyncBackendConflictError,
 	SyncBackendPublicationOutcomeUnknownError,
-} from "../src/sync-backend.js";
-import type { Snapshot } from "../src/types.js";
+} from "../src/backends/sync-backend.js";
+import type { Snapshot } from "../src/snapshot/snapshot-types.js";
 
 export class MemorySyncBackend implements SyncBackend {
 	readonly identity: string;

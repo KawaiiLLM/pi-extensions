@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
-import { loadConfig, localConfigPath, statePathForConfig } from "../src/config.js";
 import {
 	normalizeWebDavIdentityUrl,
 	normalizeWebDavPath,
 	normalizeWebDavUrl,
 	validateWebDavCredentials,
-} from "../src/webdav-config.js";
+} from "../src/backends/webdav/webdav-config.js";
+import { loadConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { statePathForConfig } from "../src/state/sync-state-store.js";
 import { v3WebDavSettings, withTempHome } from "./helpers.js";
 
 test("version 3 resolves WebDAV connection credentials and complete storage path", async () => {

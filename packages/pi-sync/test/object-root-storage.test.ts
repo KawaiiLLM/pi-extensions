@@ -1,9 +1,19 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { historyKey, latestKey, S3SyncBackend, snapshotKey } from "../src/s3-backend.js";
-import { expectedRemoteHead } from "../src/sync-backend.js";
-import type { ResolvedS3Backend } from "../src/types.js";
-import { historyPath, latestPath, snapshotPath, WebDavSyncBackend } from "../src/webdav-backend.js";
+import type { ResolvedS3Backend } from "../src/backends/backend-types.js";
+import {
+	historyKey,
+	latestKey,
+	S3SyncBackend,
+	snapshotKey,
+} from "../src/backends/s3/s3-backend.js";
+import { expectedRemoteHead } from "../src/backends/sync-backend.js";
+import {
+	historyPath,
+	latestPath,
+	snapshotPath,
+	WebDavSyncBackend,
+} from "../src/backends/webdav/webdav-backend.js";
 import { snapshot } from "./helpers.js";
 import { MockWebDavServer, webDavConfig } from "./mock-webdav-server.js";
 

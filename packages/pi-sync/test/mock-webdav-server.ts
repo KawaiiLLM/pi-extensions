@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import type { ResolvedWebDavBackend } from "../src/types.js";
+import type { ResolvedWebDavBackend } from "../src/backends/backend-types.js";
 
 export interface MockWebDavOptions {
 	username?: string;

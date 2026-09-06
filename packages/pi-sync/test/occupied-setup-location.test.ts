@@ -4,15 +4,13 @@ import path from "node:path";
 import { initTheme } from "@earendil-works/pi-coding-agent";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import {
-	loadConfig,
-	localConfigPath,
-	readLocalConfigObject,
-	validateSettingsDocument,
-} from "../src/config.js";
-import { showSyncManager } from "../src/manager-ui.js";
-import { addSyncSetup } from "../src/settings-management.js";
-import { promptAvailableSetupStorage } from "../src/setup-location-ui.js";
+import { loadConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { addSyncSetup } from "../src/settings/settings-management.js";
+import { readLocalConfigObject } from "../src/settings/settings-store.js";
+import { validateSettingsDocument } from "../src/settings/settings-validation.js";
+import { showSyncManager } from "../src/ui/manager-ui.js";
+import { promptAvailableSetupStorage } from "../src/ui/setup/setup-location-ui.js";
 import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
 
 initTheme("dark", false);

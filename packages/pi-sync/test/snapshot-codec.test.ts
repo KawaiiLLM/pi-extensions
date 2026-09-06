@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { gzipSync } from "node:zlib";
 import { test } from "vitest";
-import { decodeSnapshot, encodeSnapshot } from "../src/snapshot-codec.js";
+import { decodeSnapshot, encodeSnapshot } from "../src/snapshot/snapshot-codec.js";
 import { snapshot } from "./helpers.js";
 
 test("snapshot codec preserves portable selection intent and rejects malformed policy", async () => {

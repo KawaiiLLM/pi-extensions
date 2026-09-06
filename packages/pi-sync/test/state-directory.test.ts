@@ -8,7 +8,7 @@ import {
 	migrateLegacyStateDirectory,
 	stateDir,
 	withStateDirectoryAccess,
-} from "../src/state-directory.js";
+} from "../src/state/state-directory.js";
 import { withTempHome } from "./helpers.js";
 
 test("new installations select the visible pi-sync state directory", async () => {

@@ -3,19 +3,15 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import {
-	loadConfig,
-	loadPartialConfig,
-	localConfigPath,
-	readLocalConfigObject,
-	updateLocalConfig,
-} from "../src/config.js";
+import { loadConfig, loadPartialConfig } from "../src/settings/config.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { readLocalConfigObject, updateLocalConfig } from "../src/settings/settings-store.js";
 import {
 	showAddWebDavStorageProfile,
 	showAddWebDavTarget,
 	showEditWebDavTarget,
 	showWebDavSetup,
-} from "../src/webdav-ui.js";
+} from "../src/ui/setup/webdav-ui.js";
 import { v3S3Settings, v3WebDavSettings, withTempHome } from "./helpers.js";
 
 test("first WebDAV setup stores masked credentials in the exact version 3 shape", async () => {

@@ -6,15 +6,16 @@ import { visibleWidth } from "@earendil-works/pi-tui";
 import { createRpcHarness, createTuiHarness } from "@narumitw/pi-tui-kit/testing";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import { ensureStateDir, localConfigPath, lockPath } from "../src/config.js";
-import { isLockGuardHeld, unlock } from "../src/lock.js";
-import { describeManagerState } from "../src/manager-state.js";
-import { showSyncManager } from "../src/manager-ui.js";
+import type { CommandOptions } from "../src/commands/command-types.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { isLockGuardHeld, unlock } from "../src/state/lock.js";
 import {
 	classifyOperationAvailability,
 	inspectOperationAvailability,
-} from "../src/operation-availability.js";
-import type { CommandOptions } from "../src/types.js";
+} from "../src/state/operation-availability.js";
+import { ensureStateDir, lockPath } from "../src/state/sync-state-store.js";
+import { describeManagerState } from "../src/ui/manager-state.js";
+import { showSyncManager } from "../src/ui/manager-ui.js";
 import { v3S3Settings, withTempHome } from "./helpers.js";
 
 initTheme("dark", false);

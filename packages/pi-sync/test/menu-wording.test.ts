@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
-import { localConfigPath } from "../src/config.js";
-import { showSyncManager } from "../src/manager-ui.js";
+import { localConfigPath } from "../src/settings/config-file.js";
+import { showSyncManager } from "../src/ui/manager-ui.js";
 import { withTempHome } from "./helpers.js";
 
 function settings() {
