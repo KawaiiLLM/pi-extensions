@@ -159,6 +159,13 @@ const independentNames = [
 	"team.lock/work",
 	"work.",
 	"work/",
+	"work///",
+	"team/work/",
+	"work /",
+	"/",
+	" work/ ",
+	"work%2F",
+	".git",
 ];
 
 const invalidCases = presets.flatMap((preset) =>
@@ -206,38 +213,33 @@ const validCases = [
 			name,
 		})),
 	),
-	...presets
-		.filter((preset) => preset !== "Git")
-		.flatMap((preset) =>
-			["work profile", ".git", "work.lock", "work..profile", "work/"].map((name) => ({
-				preset,
-				name,
-			})),
-		),
 ];
 
-test.each(validCases)("$preset accepts backend-valid name $name", async ({ preset, name }) => {
-	await withTempHome(async () => {
-		const titles: string[] = [];
-		const { ctx, notifications } = createMockContext({
-			hasUI: true,
-			mode: "tui",
-			select: async () => preset,
-			input: async (title: string) => {
-				titles.push(title);
-				return titles.length === 1 ? name : undefined;
-			},
+test.each(validCases)(
+	"$preset accepts name $name independently of its path",
+	async ({ preset, name }) => {
+		await withTempHome(async () => {
+			const titles: string[] = [];
+			const { ctx, notifications } = createMockContext({
+				hasUI: true,
+				mode: "tui",
+				select: async () => preset,
+				input: async (title: string) => {
+					titles.push(title);
+					return titles.length === 1 ? name : undefined;
+				},
+			});
+			assert.equal(await showSetupWizard(ctx), false);
+			assert.equal(titles.length, 2);
+			assert.doesNotMatch(titles[1], /^Sync setup name/u);
+			assert.deepEqual(notifications, []);
 		});
-		assert.equal(await showSetupWizard(ctx), false);
-		assert.equal(titles.length, 2);
-		assert.doesNotMatch(titles[1], /^Sync setup name/u);
-		assert.deepEqual(notifications, []);
-	});
-});
+	},
+);
 
-test.each([false, true])(
-	"name correction cancellation (abort=%s) never advances setup",
-	async (abort) => {
+test.each(presets.flatMap((preset) => [false, true].map((abort) => ({ preset, abort }))))(
+	"$preset name correction cancellation (abort=$abort) never advances setup",
+	async ({ preset, abort }) => {
 		await withTempHome(async () => {
 			const controller = new AbortController();
 			const titles: string[] = [];
@@ -245,7 +247,7 @@ test.each([false, true])(
 			const { ctx, notifications } = createMockContext({
 				hasUI: true,
 				mode: "tui",
-				select: async () => "Git",
+				select: async () => preset,
 				input: async (title: string, _placeholder?: string, options?: { signal?: AbortSignal }) => {
 					titles.push(title);
 					signals.push(options?.signal);

@@ -110,6 +110,70 @@ test.each([
 	});
 });
 
+test.each(
+	["Cloudflare R2", "Other S3-compatible storage"].flatMap((preset) =>
+		["work/", "work///", "team/work/", "work /", "/", " work/ "].map((input) => ({
+			preset,
+			input,
+		})),
+	),
+)("$preset setup named $input uses the exact reviewed root path", async ({ preset, input }) => {
+	await withTempHome(async () => {
+		const r2 = preset === "Cloudflare R2";
+		const choices = [
+			preset,
+			r2
+				? "Use suggested location (recommended)"
+				: "Use existing bucket with suggested path (recommended)",
+			"Store credentials privately",
+			"Minimal settings",
+			"Keep automatic sync off",
+			"Keep sessions off (recommended)",
+			"Save sync setup",
+		];
+		const inputs = [
+			r2 ? "https://account.r2.cloudflarestorage.com" : "https://s3.example.com",
+			...(r2 ? [] : ["us-east-1", "existing-bucket"]),
+			"access-key",
+		];
+		const titles: string[] = [];
+		let nameCalls = 0;
+		let review = "";
+		const { ctx, notifications } = createMockContext({
+			hasUI: true,
+			mode: "tui",
+			select: async (title: string) => {
+				if (title.startsWith("Review sync setup")) review = title;
+				return choices.shift();
+			},
+			input: async (title: string) => {
+				titles.push(title);
+				if (title.startsWith("Sync setup name")) {
+					nameCalls++;
+					return input;
+				}
+				return inputs.shift();
+			},
+			custom: secretInput("secret-key"),
+		});
+		assert.equal(await showSetupWizard(ctx), true);
+		const reviewedPath = review.split("\n").find((line) => line.startsWith("Storage location: "));
+		assert.equal(reviewedPath, "Storage location: ./");
+		assert.match(titles[0], /^Sync setup name/u);
+		assert.equal(nameCalls, 1);
+		assert.equal(notifications.filter((item) => item.level === "warning").length, 0);
+		const saved = await readLocalConfigObject();
+		const name = input.trim();
+		assert.equal(saved?.activeSyncSetup, name);
+		assert.equal(saved?.syncSetups[name].storage.path, "./");
+		const config = await loadConfig();
+		assert.equal(config.storagePath, "./");
+		assert.equal(config.backend.type, "s3");
+		if (config.backend.type !== "s3") return;
+		assert.equal(config.backend.destination.prefix, "./");
+	});
+});
+
 test("generic S3 setup reviews one complete custom storage path", async () => {
 	await withTempHome(async (agentDir) => {
 		mkdirSync(agentDir, { recursive: true });
