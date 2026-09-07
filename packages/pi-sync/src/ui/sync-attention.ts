@@ -39,21 +39,24 @@ export interface SyncAttentionController {
 	markOffered(): boolean;
 	clear(ctx: ExtensionContext): void;
 	reset(ctx: ExtensionContext): void;
-	publish(ctx: ExtensionContext): void;
+	publish(ctx: ExtensionContext, signal?: AbortSignal): Promise<void>;
 }
 
 export function createSyncAttentionController(): SyncAttentionController {
 	let state: SyncAttentionState | undefined;
 	let observation: StartupObservation | undefined;
+	let generation = 0;
 
 	return {
 		observe(value) {
+			generation++;
 			observation = value;
 		},
 		observation() {
 			return observation;
 		},
 		clearObservation() {
+			generation++;
 			observation = undefined;
 		},
 		notifyObservation(ctx) {
@@ -62,6 +65,7 @@ export function createSyncAttentionController(): SyncAttentionController {
 			}
 		},
 		set(decision, origin) {
+			generation++;
 			state = { decision, origin, offered: false };
 		},
 		current() {
@@ -73,15 +77,19 @@ export function createSyncAttentionController(): SyncAttentionController {
 			return true;
 		},
 		clear(ctx) {
+			generation++;
 			state = undefined;
 			clearAttentionPresentation(ctx);
 		},
 		reset(ctx) {
+			generation++;
 			state = undefined;
 			observation = undefined;
 			clearAttentionPresentation(ctx);
 		},
-		publish(ctx) {
+		async publish(ctx, signal) {
+			const currentGeneration = ++generation;
+			if (signal?.aborted) return;
 			if (!state && (!observation || !observationNeedsAttention(observation))) {
 				clearAttentionPresentation(ctx);
 				return;
@@ -92,17 +100,27 @@ export function createSyncAttentionController(): SyncAttentionController {
 						status: "changes to review",
 						lines: observationLines(observation as StartupObservation),
 					};
+			if (ctx.mode !== "tui") {
+				ctx.ui.setStatus(STATUS_KEY, presentation.status);
+				return;
+			}
+			// Keep Kit outside the eager startup graph; module loading owns no cancellable resources.
+			const { EditorStatusWidget } = await import("./attention-widget.js");
+			if (generation !== currentGeneration || signal?.aborted) return;
 			ctx.ui.setStatus(STATUS_KEY, presentation.status);
-			if (ctx.mode !== "tui") return;
-			ctx.ui.setWidget(WIDGET_KEY, (_tui, theme) => ({
-				render(width: number) {
-					const safeWidth = Math.max(1, width);
-					return presentation.lines.map((line, index) =>
-						truncateToWidth(theme.fg(index === 0 ? "warning" : "muted", line), safeWidth, "…"),
-					);
-				},
-				invalidate() {},
-			}));
+			ctx.ui.setWidget(
+				WIDGET_KEY,
+				(_tui, theme) =>
+					new EditorStatusWidget({
+						theme,
+						renderBody: (width) =>
+							presentation.lines.map((line, index) =>
+								width === 0
+									? ""
+									: truncateToWidth(theme.fg(index === 0 ? "warning" : "muted", line), width, "…"),
+							),
+					}),
+			);
 		},
 	};
 }

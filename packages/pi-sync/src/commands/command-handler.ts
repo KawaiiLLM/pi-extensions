@@ -53,7 +53,7 @@ export async function handleCommand(
 			ctx.ui.notify(errorMessage(error), "error");
 		}
 		await reconcileObservation(attention, sessionSignal);
-		if (!sessionSignal.aborted) attention.publish(ctx);
+		if (!sessionSignal.aborted) await attention.publish(ctx, sessionSignal);
 		return;
 	}
 	const result = await run(rawArgs);
@@ -79,7 +79,7 @@ export async function handleCommand(
 	await clearAttentionAfterCompletedOperation(rawArgs, result, ctx, attention, sessionSignal);
 	await reconcileSelectionAttention(ctx, attention, sessionSignal);
 	await reconcileObservation(attention, sessionSignal);
-	if (!sessionSignal.aborted) attention.publish(ctx);
+	if (!sessionSignal.aborted) await attention.publish(ctx, sessionSignal);
 }
 
 function observationCommitCallback(

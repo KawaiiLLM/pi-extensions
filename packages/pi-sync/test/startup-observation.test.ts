@@ -30,7 +30,7 @@ test("advisory widget is read-only, sanitized, narrow, themed at render time, an
 		};
 		const context = createMockContext({ mode: "tui" });
 		attention.observe(observation);
-		attention.publish(context.ctx);
+		await attention.publish(context.ctx);
 		const factory = context.widgets.get("sync:attention") as (
 			_tui: unknown,
 			theme: { fg: (role: string, text: string) => string },
@@ -69,7 +69,7 @@ test("advisory widget is read-only, sanitized, narrow, themed at render time, an
 			},
 			"sync",
 		);
-		attention.publish(context.ctx);
+		await attention.publish(context.ctx);
 		assert.equal(context.statuses.get("sync"), "review needed");
 		attention.reset(context.ctx);
 		assert.equal(attention.observation(), undefined);
