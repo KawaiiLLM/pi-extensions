@@ -1,5 +1,11 @@
 # @narumitw/pi-sync
 
+## 0.50.1
+
+### Patch Changes
+
+- 0f319d2: Add a themed horizontal separator above the sync attention widget to match other widgets above the editor.
+
 ## 0.50.0
 
 ### Minor Changes
