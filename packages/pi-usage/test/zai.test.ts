@@ -625,3 +625,47 @@ test("a Z.AI credential with no coding plan leaves the statusline empty", async 
 		vi.unstubAllGlobals();
 	}
 });
+
+// The verdict does not change on retry, so it is throttled like a failure instead of re-querying
+// the quota and plan endpoints on every turn.
+test("an unsupported Z.AI credential is throttled instead of re-queried each turn", async () => {
+	const noCodingPlan = { code: 500, msg: "当前用户不存在coding plan", success: false };
+	const requests: Array<{ url: string; authorization: string | undefined }> = [];
+	vi.stubGlobal(
+		"fetch",
+		zaiFetchStub(requests, () => new Response(JSON.stringify(noCodingPlan), { status: 200 })),
+	);
+	try {
+		const mock = createMockPi();
+		usageExtension(mock.pi);
+		const { ctx, statuses } = createMockContext({
+			model: ZAI_MODEL,
+			modelRegistry: {
+				getProviderAuth: async () => ({ auth: { apiKey: "zai-secret-key" } }),
+				getAvailable: () => [ZAI_MODEL],
+				getAll: () => [ZAI_MODEL],
+				getProviderAuthStatus: () => ({ configured: true }),
+				getProviderDisplayName: () => "Z.AI",
+			},
+		});
+
+		await mock.events.get("session_start")?.[0]?.({}, ctx);
+		for (let turn = 0; turn < 3; turn += 1) {
+			await mock.events.get("turn_start")?.[0]?.({}, ctx);
+			for (let index = 0; index < 8; index += 1) {
+				await new Promise<void>((resolve) => setImmediate(resolve));
+			}
+		}
+
+		assert.equal(statuses.get("usage"), undefined);
+		assert.deepEqual(
+			requests.map((request) => request.url),
+			[
+				"https://api.z.ai/api/monitor/usage/quota/limit",
+				"https://api.z.ai/api/biz/subscription/list",
+			],
+		);
+	} finally {
+		vi.unstubAllGlobals();
+	}
+});
