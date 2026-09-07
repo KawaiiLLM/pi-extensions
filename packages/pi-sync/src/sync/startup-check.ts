@@ -107,7 +107,7 @@ export function createStartupCheck(
 						);
 					} finally {
 						clearTimeout(timer);
-						if (isCurrent() && checking) attention.publish(ctx);
+						if (isCurrent() && checking) await attention.publish(ctx, sessionSignal);
 						if (active === task) active = undefined;
 					}
 				})
