@@ -28,6 +28,7 @@ import {
 	errorMessage,
 	runWithConcurrency,
 	UsageCache,
+	UsageUnsupportedError,
 } from "./core.js";
 import { formatProviderStates, formatUsageStatusline } from "./format.js";
 import { createOAuthCredentialCandidateReader } from "./oauth-credential-source.js";
@@ -479,11 +480,12 @@ export default function usageExtension(
 				);
 			}
 			const message = errorMessage(error);
+			const unsupported = error instanceof UsageUnsupportedError;
 			const now = Date.now();
 			for (const [key, failure] of failureBackoff) {
 				if (failure.until <= now) failureBackoff.delete(key);
 			}
-			if (queryId === undefined || latestQueries.get(failureKey) === queryId) {
+			if (!unsupported && (queryId === undefined || latestQueries.get(failureKey) === queryId)) {
 				setBoundedMap(
 					failureBackoff,
 					failureKey,
@@ -496,7 +498,7 @@ export default function usageExtension(
 					providerId: adapter.id,
 					providerName,
 					displayState,
-					status: "query-failed",
+					status: unsupported ? "unsupported" : "query-failed",
 					message,
 				},
 				fingerprint: auth.fingerprint,

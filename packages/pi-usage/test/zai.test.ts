@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
-import { createMockContext } from "../../../test/support.js";
+import { createMockContext, createMockPi } from "../../../test/support.js";
 import {
 	formatUsageReport,
 	formatUsageStatusline,
@@ -11,6 +11,7 @@ import {
 	resolveUsageAuth,
 	SUPPORTED_ADAPTERS,
 } from "../src/index.js";
+import usageExtension from "../src/usage.js";
 
 const ZAI_QUOTA_PAYLOAD = {
 	code: 200,
@@ -287,7 +288,10 @@ test("Z.AI adapter derives window length and label from the payload window numbe
 });
 
 test("Z.AI adapter rejects malformed or empty quota responses", () => {
-	assert.throws(() => normalizeZaiQuotaPayload("zai", "Z.AI", {}, 0), /not an object/);
+	assert.throws(
+		() => normalizeZaiQuotaPayload("zai", "Z.AI", {}, 0),
+		/No GLM Coding Plan on this Z\.AI credential/,
+	);
 	assert.throws(
 		() => normalizeZaiQuotaPayload("zai", "Z.AI", { data: { limits: [] } }, 0),
 		/no displayable usage data/,
@@ -586,5 +590,38 @@ test("Z.AI usage resolves only official origins", async () => {
 		});
 		const auth = await resolveUsageAuth(ctx, adapter);
 		assert.deepEqual(auth?.headers, { Authorization: "Bearer official-key" });
+	}
+});
+
+// Both API and coding plan credentials use the same coding base URL, so the no-plan answer is the
+// only signal that a credential carries no subscription.
+test("a Z.AI credential with no coding plan leaves the statusline empty", async () => {
+	const noCodingPlan = { code: 500, msg: "当前用户不存在coding plan", success: false };
+	vi.stubGlobal(
+		"fetch",
+		zaiFetchStub([], () => new Response(JSON.stringify(noCodingPlan), { status: 200 })),
+	);
+	try {
+		const mock = createMockPi();
+		usageExtension(mock.pi);
+		const { ctx, statuses } = createMockContext({
+			model: ZAI_MODEL,
+			modelRegistry: {
+				getProviderAuth: async () => ({ auth: { apiKey: "zai-secret-key" } }),
+				getAvailable: () => [ZAI_MODEL],
+				getAll: () => [ZAI_MODEL],
+				getProviderAuthStatus: () => ({ configured: true }),
+				getProviderDisplayName: () => "Z.AI",
+			},
+		});
+
+		await mock.events.get("session_start")?.[0]?.({}, ctx);
+		for (let index = 0; index < 8; index += 1) {
+			await new Promise<void>((resolve) => setImmediate(resolve));
+		}
+
+		assert.equal(statuses.get("usage"), undefined);
+	} finally {
+		vi.unstubAllGlobals();
 	}
 });
