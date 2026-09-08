@@ -2,7 +2,12 @@
 // separating that security boundary would duplicate request and redaction policy across providers.
 import { randomBytes } from "node:crypto";
 import { type ExtensionContext, readStoredCredential } from "@earendil-works/pi-coding-agent";
-import { errorMessage, fingerprintResolvedAuth, redactUsageError } from "./core.js";
+import {
+	errorMessage,
+	fingerprintResolvedAuth,
+	redactUsageError,
+	UsageUnsupportedError,
+} from "./core.js";
 import {
 	fallbackOAuthCredentialCandidates,
 	type OAuthCredentialCandidateReader,
@@ -547,7 +552,11 @@ export async function queryProviderUsage(
 		);
 	} catch (error) {
 		if (isStaleExtensionContextError(error) || isAbortError(error)) throw error;
-		throw new Error(redactUsageError(errorMessage(error), auth.secrets));
+		const message = redactUsageError(errorMessage(error), auth.secrets);
+		// Redaction rebuilds the error, so the unsupported signal has to be carried across.
+		throw error instanceof UsageUnsupportedError
+			? new UsageUnsupportedError(message)
+			: new Error(message);
 	}
 }
 

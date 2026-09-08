@@ -1,4 +1,4 @@
-import { sanitizeDisplayText } from "../core.js";
+import { sanitizeDisplayText, UsageUnsupportedError } from "../core.js";
 import type {
 	UsageBucket,
 	UsageMetric,
@@ -19,7 +19,14 @@ export function normalizeZaiQuotaPayload(
 	plan?: ZaiPlanInfo,
 ): UsageReport {
 	const data = asObject(payload.data);
-	if (!data) throw new Error("Z.AI quota response data was not an object.");
+	// A credential with no coding plan answers HTTP 200 with no data object:
+	// {"code":500,"msg":"当前用户不存在coding plan","success":false}. API usage is not metered.
+	if (!data) {
+		const reason = asString(payload.msg);
+		throw new UsageUnsupportedError(
+			`No GLM Coding Plan on this Z.AI credential; API usage is not metered.${reason ? ` Z.AI reported: ${reason}` : ""}`,
+		);
+	}
 	const limits = Array.isArray(data.limits) ? (data.limits as unknown[]) : [];
 
 	const buckets: UsageBucket[] = [];

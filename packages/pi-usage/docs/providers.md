@@ -259,5 +259,6 @@ The extension classifies both forms by the provider's window unit and does not l
 The quota monitor expects a raw API key without a `Bearer` prefix.
 The extension removes that prefix from resolved authorization before sending it to the monitor endpoint.
 Fingerprinting and redaction keep using the original resolved credential.
+A credential with no coding plan answers HTTP 200 without a data object; that is reported as `Unsupported` rather than a query failure, so the statusline stays empty.
 The plan endpoint only contributes the plan name and renewal date; when it is unavailable or fails, the quota windows remain reported and the plan note falls back to the quota response's plan level.
 Only the official `api.z.ai` and `open.bigmodel.cn` origins are queried; other origins fail before sending the credential.
