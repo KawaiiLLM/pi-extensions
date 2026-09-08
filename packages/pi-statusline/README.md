@@ -7,7 +7,7 @@ Add a Powerline-style footer that works without setup and keeps important Pi, wo
 A representative uncolored layout:
 
 ```text
-░▒▓ ~/pi-extensions ⎇ main ~2 ✱ Sonnet 4 ◈ high ◔ 84K (42%) § ↑5.3K ↓259 ☉ $0.12 (sub) ◒ 12% (4h 45m) ◑ 8% ($3064) ⌁ 82%
+░▒▓ ~/pi-extensions ⎇ main ~2 ✱ Sonnet 4 ◈ high ◔ 84K (42%) § ↑5.3K ↓259 ☉ $186.00 (93%) ◒ 12% (4h 45m) ◑ 8% ($3064) ⌁ 82%
 ```
 
 ## ✨ Features
@@ -136,11 +136,13 @@ A segment that is itself wider than the row is left out in either mode rather th
 - `context` renders the tokens in use and their share of the window, such as `149K (40%)`.
   After compaction it can temporarily render `?` until the next valid assistant response.
   At 80% usage or higher, the segment swaps its foreground and background colors.
-- `tokens` and `cost` total every usage-bearing session entry, matching Pi's native footer.
+- `tokens` totals every usage-bearing session entry, matching Pi's native footer.
   This includes assistant messages, nested-LLM tool results, compactions, and branch summaries, including abandoned branches retained in the session.
 - `cache` is the latest assistant response's prompt-cache hit rate: `cacheRead / (input + cacheRead + cacheWrite)` for that response, rounded to whole percent, followed by whole minutes since that response once a minute has passed, such as `82% (12m)`. A session total would be dominated by early cache writes and never recover, so it tracks the most recent turn instead, and the idle time says whether that cache is still warm. At 50% or lower, the segment swaps its foreground and background colors; until a response reports prompt tokens it stays hidden.
-- `cost` shows two decimals. Subscription-backed OAuth models and `kimi-coding` append `(sub)`.
-  The dollar value is usage cost, not proof of an amount billed under a subscription.
+- `cost` is what the current provider's replies have cost since local midnight, read from every session on disk rather than this session alone, such as `$12.40`. It stays hidden until that scan lands, and refreshes at the end of each turn and across midnight.
+  The dollar value is usage cost, not proof of an amount billed under a subscription. Subscription-backed OAuth models and `kimi-coding` append `(sub)` when no daily budget is available.
+- With a weekly window for the same account, `cost` appends today's share of the day's budget instead, such as `$186.00 (93%)`, and inverts its colors once that share reaches 100%.
+  The budget is the quota left at the start of today spread over the days left in the window, so overspending tightens every later day rather than moving a line already crossed; both terms come from the current reading, so the line holds still for the whole day and an alert cannot lapse by waiting. The arithmetic stays in percent of the window, which keeps it defined before the first percent of the window is used.
 
 ### Subscription windows
 

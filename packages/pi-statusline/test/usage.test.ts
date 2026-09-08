@@ -36,20 +36,14 @@ test("footer usage includes every usage-bearing session entry and uses the lates
 		}),
 	];
 
-	const result = summarizeFooterUsage(entries);
-	assert.deepEqual(
-		{ ...result, cost: undefined },
-		{
-			input: 96,
-			output: 9,
-			cacheRead: 55,
-			cacheWrite: 8,
-			cost: undefined,
-			latestCacheHitRate: 20,
-			latestAt: 2_000,
-		},
-	);
-	assert.ok(Math.abs(result.cost - 0.2) < Number.EPSILON);
+	assert.deepEqual(summarizeFooterUsage(entries), {
+		input: 96,
+		output: 9,
+		cacheRead: 55,
+		cacheWrite: 8,
+		latestCacheHitRate: 20,
+		latestAt: 2_000,
+	});
 });
 
 test("a latest zero-prompt assistant clears the rate without clearing cumulative cache totals", () => {
@@ -83,7 +77,6 @@ test("sessions without cache activity retain zero cache totals and a zero latest
 			output: 5,
 			cacheRead: 0,
 			cacheWrite: 0,
-			cost: 0.01,
 			latestCacheHitRate: 0,
 			latestAt: 5_000,
 		},

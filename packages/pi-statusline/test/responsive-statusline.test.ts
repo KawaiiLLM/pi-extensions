@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { visibleWidth } from "@earendil-works/pi-tui";
-import { afterAll, test } from "vitest";
+import { afterAll, test, vi } from "vitest";
 import { createMockContext, createMockPi } from "../../../test/support.js";
 import statusline from "../src/statusline.js";
 
@@ -57,6 +57,8 @@ test("balanced footer fits common widths and keeps context visible at narrow wid
 	await emit(mock.events, "session_start", {}, context.ctx);
 	const footer = createFooter(context.footer as FooterFactory, "main");
 	try {
+		// The day's spend arrives from a filesystem scan, so the cost segment is late.
+		await vi.waitFor(() => assert.match(footer.render(120).join("\n"), /☉/u));
 		for (const width of [24, 40, 80, 120]) {
 			const lines = footer.render(width);
 			assert.ok(lines.length > 0);

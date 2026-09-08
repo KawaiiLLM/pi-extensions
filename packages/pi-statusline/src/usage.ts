@@ -5,7 +5,6 @@ interface UsageLike {
 	output?: number;
 	cacheRead?: number;
 	cacheWrite?: number;
-	cost?: { total?: number };
 }
 
 export interface FooterUsageSummary {
@@ -13,7 +12,6 @@ export interface FooterUsageSummary {
 	output: number;
 	cacheRead: number;
 	cacheWrite: number;
-	cost: number;
 	latestCacheHitRate?: number;
 	/** When the latest assistant response landed, for the idle timer beside the hit rate. */
 	latestAt?: number;
@@ -25,7 +23,6 @@ export function summarizeFooterUsage(entries: readonly SessionEntry[]): FooterUs
 		output: 0,
 		cacheRead: 0,
 		cacheWrite: 0,
-		cost: 0,
 	};
 
 	for (const entry of entries) {
@@ -50,7 +47,6 @@ export function summarizeFooterUsage(entries: readonly SessionEntry[]): FooterUs
 		totals.output += usage.output ?? 0;
 		totals.cacheRead += usage.cacheRead ?? 0;
 		totals.cacheWrite += usage.cacheWrite ?? 0;
-		totals.cost += usage.cost?.total ?? 0;
 	}
 
 	return totals;

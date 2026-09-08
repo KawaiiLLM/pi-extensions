@@ -9,6 +9,7 @@ import { getCapabilities } from "@earendil-works/pi-tui";
 import { registerCodexFastMode } from "./codex-fast-runtime.js";
 import { completeStatuslineArguments } from "./command-contract.js";
 import type { StatuslineCommandOptions } from "./commands.js";
+import { createDailySpendRefresher, startOfLocalDay } from "./daily-spend.js";
 import {
 	buildExtensionStatusIconAliases,
 	type ExtensionStatusIconAliasMap,
@@ -70,10 +71,18 @@ export default function statusline(pi: ExtensionAPI) {
 
 	const refresh = () => runtime.requestRender?.();
 	const ownsRuntime = (ctx: ExtensionContext) => ctx.sessionManager === activeSessionManager;
+	const sessionsDir = join(getAgentDir(), "sessions");
 	const usage = createUsageRefresher(pi, {
-		sessionsDir: join(getAgentDir(), "sessions"),
+		sessionsDir,
 		onUpdate(value) {
 			runtime.usage = value;
+			refresh();
+		},
+	});
+	const dailySpend = createDailySpendRefresher({
+		sessionsDir,
+		onUpdate(value) {
+			runtime.dailySpent = value;
 			refresh();
 		},
 	});
@@ -161,6 +170,7 @@ export default function statusline(pi: ExtensionAPI) {
 		activeGitStatusTarget = ctx.mode === "tui" ? { cwd, generation } : undefined;
 		runtime.gitStatus = undefined;
 		usage.stop();
+		dailySpend.stop();
 		runtime.usage = undefined;
 		runtime.duplicateExtensions = [];
 		runtime.extensionStatusIconAliases = EMPTY_EXTENSION_STATUS_ICON_ALIASES;
@@ -183,6 +193,10 @@ export default function statusline(pi: ExtensionAPI) {
 			const clock = setInterval(() => {
 				clearGitStatusDebounce();
 				refreshFooterGitStatus();
+				// Midnight retires the day's spend even when nothing is being spent.
+				if (runtime.dailySpent && runtime.dailySpent.day !== startOfLocalDay(Date.now())) {
+					dailySpend.refresh(ctx);
+				}
 				tui.requestRender();
 			}, GIT_STATUS_REFRESH_INTERVAL_MS);
 			// Subscription windows alternate between their countdown and their price;
@@ -241,6 +255,7 @@ export default function statusline(pi: ExtensionAPI) {
 		});
 		refreshGitStatus(cwd, generation);
 		usage.refresh(ctx);
+		dailySpend.refresh(ctx);
 	};
 
 	const agentDir = getAgentDir();
@@ -338,6 +353,7 @@ export default function statusline(pi: ExtensionAPI) {
 		pendingGitStatusRefresh = undefined;
 		runtime.gitStatus = undefined;
 		usage.stop();
+		dailySpend.stop();
 		runtime.usage = undefined;
 		runtime.activeTools.clear();
 		runtime.isStreaming = false;
@@ -350,7 +366,10 @@ export default function statusline(pi: ExtensionAPI) {
 	});
 
 	pi.on("model_select", (_event, ctx) => {
-		if (ownsRuntime(ctx)) usage.refresh(ctx);
+		if (ownsRuntime(ctx)) {
+			usage.refresh(ctx);
+			dailySpend.refresh(ctx);
+		}
 		refresh();
 	});
 
@@ -402,6 +421,8 @@ export default function statusline(pi: ExtensionAPI) {
 	pi.on("turn_end", (_event, ctx) => {
 		if (!ownsRuntime(ctx)) return;
 		scheduleGitStatusRefreshForContext(ctx);
+		// The turn's replies are on disk by now, and nothing else moves the day's spend.
+		dailySpend.refresh(ctx);
 		refresh();
 	});
 

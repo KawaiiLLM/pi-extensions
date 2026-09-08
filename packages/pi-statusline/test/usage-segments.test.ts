@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import type { ReadonlyFooterDataProvider, Theme } from "@earendil-works/pi-coding-agent";
 import { afterEach, test, vi } from "vitest";
 import { createMockContext } from "../../../test/support.js";
+import { startOfLocalDay } from "../src/daily-spend.js";
 import { renderPowerlineStatusline } from "../src/powerline.js";
 import { type RuntimeState, renderStatusline } from "../src/render.js";
 import { createDefaultConfig, normalizeStatuslineConfig } from "../src/settings.js";
@@ -38,7 +39,7 @@ const footerData: ReadonlyFooterDataProvider = {
 	getAvailableProviderCount: () => 1,
 };
 
-function runtimeWith(usage: RuntimeState["usage"]): RuntimeState {
+function runtimeWith(usage: RuntimeState["usage"], dollars = 0): RuntimeState {
 	return {
 		turnCount: 0,
 		activeTools: new Map(),
@@ -47,6 +48,7 @@ function runtimeWith(usage: RuntimeState["usage"]): RuntimeState {
 		duplicateExtensions: [],
 		extensionStatusIconAliases: new Map(),
 		usage,
+		dailySpent: { day: startOfLocalDay(Date.now()), providerId: "openai-codex", dollars },
 	};
 }
 
@@ -68,6 +70,7 @@ test("subscription windows render their countdown, then their value, in the conf
 			usedPercent: 12.4,
 			windowMinutes: FIVE_HOURS,
 			resetsAt: frameStart / 1000 + 285 * 60,
+			spent: 80,
 			windowDollars: 647,
 		},
 		weekly: {
@@ -75,6 +78,7 @@ test("subscription windows render their countdown, then their value, in the conf
 			usedPercent: 8,
 			windowMinutes: SEVEN_DAYS,
 			resetsAt: frameStart / 1000 + 7_185 * 60,
+			spent: 0,
 		},
 	});
 	const render = () =>
@@ -99,11 +103,12 @@ test("a window the provider did not report leaves its segment out", () => {
 			usedPercent: 6,
 			windowMinutes: SEVEN_DAYS,
 			resetsAt: Date.now() / 1000 + 60,
+			spent: 0,
 		},
 	});
 	assert.match(
 		plain(renderStatusline(300, context.ctx, footerData, {} as Theme, config, weeklyOnly)),
-		/^░▒▓ ◑ 6% \(\d+m\) ☉ \$0\.00$/u,
+		/^░▒▓ ◑ 6% \(\d+m\) ☉ \$0\.00 \(0%\)$/u,
 	);
 	assert.equal(
 		plain(

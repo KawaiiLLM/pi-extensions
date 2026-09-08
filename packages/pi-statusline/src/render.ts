@@ -9,6 +9,7 @@ import type {
 import { sliceByColumn, visibleWidth } from "@earendil-works/pi-tui";
 import { sanitizeTerminalText } from "@narumitw/pi-tui-kit/terminal-text";
 import { codexFastIsEffective } from "./codex-fast.js";
+import { type DailySpend, dailyBudgetPercent } from "./daily-spend.js";
 import { formatDirectoryPath } from "./directory.js";
 import {
 	type ExtensionStatusRuntime,
@@ -39,6 +40,7 @@ export interface RuntimeState extends ExtensionStatusRuntime {
 	thinkingLevel: ThinkingLevel;
 	gitStatus?: GitStatusSummary;
 	usage?: UsageRuntime;
+	dailySpent?: DailySpend;
 	requestRender?: () => void;
 }
 
@@ -189,8 +191,27 @@ function buildSegment(
 			return segment(name, value, config, "accent", false, hitRate <= 50);
 		}
 		case "cost": {
-			const subscription = isSubscriptionBacked(ctx) ? " (sub)" : "";
-			return segment(name, `$${usageSummary.cost.toFixed(2)}${subscription}`, config, "accent");
+			// Today, not the session: a session total never resets, so it stops
+			// answering the only question the figure is asked, what today cost.
+			const today = runtime.dailySpent;
+			if (!today) return undefined;
+			// The share of today's budget spent says more than the dollars alone,
+			// and it is the reading the alert fires on.
+			const budget = dailyBudgetPercent(runtime.usage, today, Date.now());
+			const suffix =
+				budget !== undefined
+					? ` (${Math.round(budget)}%)`
+					: isSubscriptionBacked(ctx)
+						? " (sub)"
+						: "";
+			return segment(
+				name,
+				`$${today.dollars.toFixed(2)}${suffix}`,
+				config,
+				"accent",
+				false,
+				budget !== undefined && budget >= 100,
+			);
 		}
 		case "five_hour":
 			return usageWindowSegment(name, runtime.usage?.fiveHour, config);

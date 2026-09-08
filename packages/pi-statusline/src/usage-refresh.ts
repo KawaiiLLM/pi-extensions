@@ -28,6 +28,8 @@ export const USAGE_TIMEOUT_MS = 15_000;
 const FAILURE_BACKOFF_MS = 30_000;
 
 export interface PricedUsageWindow extends UsageWindow {
+	/** What this window's replies cost locally, the denominator every share of it is read against. */
+	spent: number;
 	windowDollars?: number;
 }
 export interface UsageRuntime {
@@ -168,7 +170,7 @@ export function createUsageRefresher(
 					usageWindowStart(window),
 					signal,
 				);
-				return { ...window, windowDollars: usageWindowDollars(spent, window.usedPercent) };
+				return { ...window, spent, windowDollars: usageWindowDollars(spent, window.usedPercent) };
 			};
 			const usage = {
 				providerId: adapter.id,

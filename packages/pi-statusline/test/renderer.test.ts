@@ -4,6 +4,7 @@ import type { ReadonlyFooterDataProvider, Theme } from "@earendil-works/pi-codin
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { test } from "vitest";
 import { createMockContext } from "../../../test/support.js";
+import { startOfLocalDay } from "../src/daily-spend.js";
 import { INFORMATION_PROFILES } from "../src/information-profiles.js";
 import { powerlineExtensionSeparator, renderPowerlineStatusline } from "../src/powerline.js";
 import { resolvePreset } from "../src/presets/index.js";
@@ -857,6 +858,7 @@ test("cache reports the latest response, not the session total, beside context a
 		thinkingLevel: "off",
 		duplicateExtensions: [],
 		extensionStatusIconAliases: new Map(),
+		dailySpent: { day: startOfLocalDay(Date.now()), providerId: "openai", dollars: 0.07 },
 	};
 
 	// The session totals 25% cache hits; the latest response read nothing from cache.
@@ -921,6 +923,7 @@ test("Kimi subscription cost is marked while API-key cost is unchanged", () => {
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.01 },
 	};
 	const renderCost = (provider: string, oauth: boolean) => {
+		runtime.dailySpent = { day: startOfLocalDay(Date.now()), providerId: provider, dollars: 0.01 };
 		const context = createMockContext({
 			model: { id: "model", provider },
 			modelRegistry: { isUsingOAuth: () => oauth },

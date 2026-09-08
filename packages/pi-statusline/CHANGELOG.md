@@ -10,7 +10,8 @@
 - Migrate `/fast`, supported-model routing and request-scoped cost correction from pi-usage; persist `codexFastMode` in pi-statusline.json and mark effective Fast mode on the model segment. Reset redemption is not included.
 - Render subscription usage windows as `five_hour` and `weekly` segments, alternating the reset countdown with the window's value at API prices and alerting at 80%.
   The provider queries are the ones pi-usage ships, carried in `src/usage-query`, so pi-usage no longer needs to run alongside.
-- Replace the emoji defaults with a geometric vocabulary and compact formats: `◔ 149K (40%)` for context, `§ ↑5.3K ↓259` for tokens, `☉ $0.07 (sub)` for cost, `⌁ 82%` for the latest response's cache hit rate, `⎇` for the branch, `✱` for the model, and `◈` for thinking.
+- Report cost for today rather than for the session: `☉ $186.00 (93%)` is the current provider's spend since local midnight, read from every session on disk, beside today's share of a daily budget. The budget is the quota left in the weekly window at the start of today spread over the days left in it, computed in percent of the window so it survives a window nobody has used yet; the segment inverts its colors at 100%.
+- Replace the emoji defaults with a geometric vocabulary and compact formats: `◔ 149K (40%)` for context, `§ ↑5.3K ↓259` for tokens, `☉ $186.00 (93%)` for cost, `⌁ 82%` for the latest response's cache hit rate, `⎇` for the branch, `✱` for the model, and `◈` for thinking.
   Claude ids collapse to family and version; every other id is shown as the provider names it.
 - Context and subscription usage at or above 80%, and cache hit rate at or below 50%, trigger a single alert: invert the segment's foreground and background in every palette. Thresholds use unrounded percentages.
 - Colors are assigned by a segment's position in its row from a ramp that cycles, replacing the fixed segment-to-block mapping; a custom `palette` is now an array in ramp order.
