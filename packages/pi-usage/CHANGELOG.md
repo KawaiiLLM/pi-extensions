@@ -1,5 +1,11 @@
 # @narumitw/pi-usage
 
+## 0.60.4
+
+### Patch Changes
+
+- 306b481: Report a Z.AI credential with no GLM Coding Plan as unsupported instead of publishing a usage error to the statusline.
+
 ## 0.60.3
 
 ### Patch Changes
