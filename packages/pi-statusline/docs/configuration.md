@@ -29,10 +29,12 @@ If both files exist, `pi-statusline.json` wins.
 
 | Field | Accepted values | Purpose |
 | --- | --- | --- |
-| `palettePreset` | `tokyo-night`, `ocean`, `sunset`, `forest`, `candy`, `neon`, `mono`, `custom` | Select the active color preset |
-| `palette` | Per-segment `fg`/`bg` `#RRGGBB` colors | Define colors used by `custom` |
+| `palettePreset` | `tokyo-night`, `ocean`, `sunset`, `forest`, `candy`, `neon`, `mono`, `prism`, `custom` | Select the active color preset |
+| `palette` | Array of `fg`/`bg` `#RRGGBB` colors in ramp order | Define colors used by `custom` |
 | `density` | `compact`, `cozy` | Control horizontal padding |
 | `separator` | `none`, `dot`, `bar`, `powerline`, `round` | Separate adjacent segments in one color block |
+| `overflow` | `wrap`, `drop` | Continue a full row on a new row, or shed segments by priority |
+| `codexFastMode` | Boolean; default `false` | Persist the `/fast` preference for supported official Codex models |
 | `segments` | Ordered unique segment names and `line_break` | Control visibility, order, and rows |
 | `segmentText` | Per-segment `prefix` and `suffix`; model truncation fields | Format Pi-owned dynamic values |
 | `extensionStatusIcons` | Raw status key or `namespace:*` to icon string | Customize extension status icons |
@@ -49,7 +51,7 @@ A compact customization example:
   "palettePreset": "ocean",
   "density": "compact",
   "separator": "dot",
-  "segments": ["model", "thinking", "cwd", "branch", "context", "cache", "cost"],
+  "segments": ["cwd", "branch", "model", "thinking", "context", "cost", "five_hour", "weekly"],
   "segmentText": {
     "model": {
       "truncationLength": 40,
@@ -72,22 +74,27 @@ Use **Advanced → Edit settings JSON** or `/statusline settings` to edit, valid
 Named palettes provide contrast-checked color ramps.
 Appearance previews update while the picker moves, but save only when Enter is pressed; Escape restores the saved palette.
 
-When `palettePreset` is `custom`, `palette` maps segment names to foreground/background colors:
+Backgrounds go by position: the first visible segment of a row takes the first ramp color, the second the second. Every theme starts a new row before a second background cycle; five-color ramps allow at most five segments per row.
+Every row starts the ramp again, whether the row came from `line_break`, a cycle boundary, or width wrapping. A one-color custom ramp puts each segment on its own row; an empty ramp has no cycle boundary.
+
+Only Prism adapts field-bound text colors: model/thinking start from `#AA79F2`, context/tokens from `#A2DAF4`, five-hour usage from `#DDF048`, weekly usage from `#FAB48C`, cache from `#F85488`, and cost from `#FFEB38`. It adjusts OKLCH lightness to reach 4:1 contrast, retaining hue and reducing chroma only if no in-gamut lightness can meet that target. Neutral fields retain Mono's black/white text. Mono and the other presets keep their original foreground colors. Alerts invert the final foreground/background pair in every preset.
+
+When `palettePreset` is `custom`, `palette` is the ramp, an array of foreground/background colors:
 
 ```json
 {
   "palettePreset": "custom",
-  "palette": {
-    "model": { "fg": "#090c0c", "bg": "#a3aed2" },
-    "context": { "fg": "#c0caf5", "bg": "#1d2230" }
-  }
+  "palette": [
+    { "fg": "#090c0c", "bg": "#a3aed2" },
+    { "fg": "#c0caf5", "bg": "#1d2230" }
+  ]
 }
 ```
 
-- Selecting `custom` without a palette copies the active named preset as a starting point.
+- Selecting `custom` without a palette copies the active named preset's ramp as a starting point.
 - A manually authored `"palettePreset": "custom"` without `palette` uses Tokyo Night colors.
 - Named presets ignore but preserve an existing custom palette.
-- A `palette` object without `palettePreset` selects `custom`.
+- A `palette` array without `palettePreset` selects `custom`.
 - Legacy string palettes such as `"palette": "ocean"` remain accepted.
 - Missing custom colors remain unstyled instead of inheriting Tokyo Night.
 - Adjacent segments with identical colors share one block; transitions use ``.
@@ -120,7 +127,7 @@ The direction names the removed portion:
 - `middle` retains both ends.
 - `end` retains the prefix.
 
-Truncation runs after the built-in Claude/GPT shortening rules but before the configured model prefix and suffix.
+Truncation runs after the built-in Claude family shortening (`claude-opus-5` becomes `Opus 5`; other ids stay as the provider names them) but before the configured model prefix and suffix.
 It changes display only—the provider model ID is untouched.
 Terminal control sequences in model IDs are removed at render time, and unsafe configured symbols are rejected.
 An empty `truncationSymbol` truncates without a marker.
@@ -150,7 +157,7 @@ Closing the screen does not roll it back.
 Available data segments:
 
 ```text
-brand provider model thinking cwd branch tools context tokens cache cost time turn
+brand provider model thinking cwd branch tools context tokens cache cost five_hour weekly time turn
 ```
 
 Data segments must be unique.

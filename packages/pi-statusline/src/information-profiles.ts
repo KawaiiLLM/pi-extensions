@@ -7,19 +7,33 @@ export type InformationProfile = InformationProfileName | "custom";
 export const INFORMATION_PROFILES: Readonly<
 	Record<InformationProfileName, readonly SegmentName[]>
 > = {
-	minimal: ["model", "cwd", "branch", "context"],
-	balanced: ["model", "thinking", "cwd", "branch", "tools", "context", "time"],
-	detailed: [
-		"provider",
+	minimal: ["cwd", "model", "context", "branch"],
+	balanced: [
+		"cwd",
 		"model",
 		"thinking",
-		"cwd",
-		"branch",
-		"tools",
 		"context",
-		"tokens",
-		"cache",
 		"cost",
+		"branch",
+		"tokens",
+		"five_hour",
+		"weekly",
+		"cache",
+		"tools",
+	],
+	detailed: [
+		"cwd",
+		"model",
+		"thinking",
+		"context",
+		"cost",
+		"branch",
+		"tokens",
+		"five_hour",
+		"weekly",
+		"cache",
+		"tools",
+		"provider",
 		"time",
 	],
 };

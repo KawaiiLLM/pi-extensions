@@ -15,6 +15,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DefaultResourceLoader, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { test } from "vitest";
+import { createMockContext } from "../../../test/support.js";
 
 const packageRoot = resolve("packages/pi-statusline");
 const builderUrl = pathToFileURL(join(packageRoot, "scripts/build-runtime.mjs")).href;
@@ -223,7 +224,32 @@ test("generated runtime is loadable by Pi's Jiti resource loader", async () => {
 		const loaded = loader.getExtensions();
 		assert.deepEqual(loaded.errors, []);
 		assert.equal(loaded.extensions.length, 1);
-		assert.ok(loaded.extensions[0]?.commands.has("statusline"));
+		const extension = loaded.extensions[0];
+		assert.ok(extension);
+		assert.ok(extension.commands.has("statusline"));
+		assert.ok(extension.commands.has("fast"));
+		const usage = extension.commands.get("usage");
+		assert.ok(usage);
+		loaded.runtime.getThinkingLevel = () => "off";
+		let opened = false;
+		const { ctx } = createMockContext({
+			cwd: root,
+			mode: "rpc",
+			hasUI: true,
+			select: async () => {
+				opened = true;
+				return "Close";
+			},
+		});
+		try {
+			for (const handler of extension.handlers.get("session_start") ?? []) await handler({}, ctx);
+			await usage.handler("", ctx);
+			assert.equal(opened, true, "generated /usage loads its lazy menu chunk");
+		} finally {
+			for (const handler of extension.handlers.get("session_shutdown") ?? [])
+				await handler({}, ctx);
+			loaded.runtime.invalidate();
+		}
 	} finally {
 		if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
 		else process.env.PI_CODING_AGENT_DIR = previousAgentDir;

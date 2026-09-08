@@ -2,8 +2,10 @@ export function ansiStyle(
 	text: string,
 	colors: { fg?: string; bg?: string },
 	trueColor = true,
+	inverse = false,
 ): string {
 	const codes = [
+		inverse ? "7" : undefined,
 		colors.fg ? colorCode("38", colors.fg, trueColor) : undefined,
 		colors.bg ? colorCode("48", colors.bg, trueColor) : undefined,
 	].filter((code): code is string => code !== undefined);

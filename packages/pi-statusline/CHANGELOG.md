@@ -1,5 +1,21 @@
 # @narumitw/pi-statusline
 
+## Unreleased (fork)
+
+### Minor Changes
+
+- Add Prism: preserve Mono's gray backgrounds and adapt approved field colors in OKLCH to 4:1 contrast. Model/thinking use #AA79F2, context #A1D9F3, subscription windows #FAB48C; other themes retain their text colors.
+- Start a new row at every background-cycle boundary in all themes. Default order puts cost last in the first five-segment group, then branch and tokens first in the next group.
+- Add `/usage` for current-account details and forced refresh, sharing the footer's account-scoped report. Keep model-specific limits separate and clear stale-account data.
+- Migrate `/fast`, supported-model routing and request-scoped cost correction from pi-usage; persist `codexFastMode` in pi-statusline.json and mark effective Fast mode on the model segment. Reset redemption is not included.
+- Render subscription usage windows as `five_hour` and `weekly` segments, alternating the reset countdown with the window's value at API prices and alerting at 80%.
+  The provider queries are the ones pi-usage ships, carried in `src/usage-query`, so pi-usage no longer needs to run alongside.
+- Replace the emoji defaults with a geometric vocabulary and compact formats: `◔ 149K (40%)` for context, `§ ↑5.3K ↓259` for tokens, `☉ $0.07 (sub)` for cost, `⌁ 82%` for the latest response's cache hit rate, `⎇` for the branch, `✱` for the model, and `◈` for thinking.
+  Claude ids collapse to family and version; every other id is shown as the provider names it.
+- Context and subscription usage at or above 80%, and cache hit rate at or below 50%, trigger a single alert: invert the segment's foreground and background in every palette. Thresholds use unrounded percentages.
+- Colors are assigned by a segment's position in its row from a ramp that cycles, replacing the fixed segment-to-block mapping; a custom `palette` is now an array in ramp order.
+- Rows wrap by default (`"overflow": "wrap"`); the previous drop-by-priority behavior stays available as `"overflow": "drop"`.
+
 ## 0.50.0
 
 ### Minor Changes

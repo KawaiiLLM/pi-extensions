@@ -64,14 +64,17 @@ test("balanced footer fits common widths and keeps context visible at narrow wid
 				lines.every((line) => visibleWidth(line) <= width),
 				`width ${width}`,
 			);
-			assert.match(lines[0] ?? "", /ctx/u, `context at width ${width}`);
+			assert.ok(
+				lines.some((line) => /◔/u.test(line)),
+				`context at width ${width}`,
+			);
 		}
-		const wide = footer.render(120)[0] ?? "";
-		assert.match(wide, /sonnet-4/u);
+		const wide = footer.render(120).join("\n");
+		assert.match(wide, /Sonnet 4/u);
 		assert.match(wide, /pi-extensions/u);
 		assert.match(wide, /main/u);
-		assert.match(wide, /🕒/u);
-		assert.doesNotMatch(wide, /💸/u);
+		assert.match(wide, /☉ \$0\.00/u);
+		assert.doesNotMatch(wide, /◷/u);
 		assert.doesNotMatch(wide, /💤|✅/u);
 	} finally {
 		footer.dispose();
@@ -85,32 +88,32 @@ test("statusline activity appears only while streaming or tools are active and r
 	await emit(mock.events, "session_start", {}, context.ctx);
 	const footer = createFooter(context.footer as FooterFactory);
 	try {
-		assert.doesNotMatch(footer.render(200)[0] ?? "", /💤|✅|⚙|💭/u);
+		assert.doesNotMatch(footer.render(200).join("\n"), /💤|✅|⚙|◌/u);
 		await emit(mock.events, "agent_start", {}, context.ctx);
-		assert.match(footer.render(200)[0] ?? "", /💭 thinking/u);
+		assert.match(footer.render(200).join("\n"), /◌ thinking/u);
 		await emit(mock.events, "tool_execution_start", { toolName: "read" }, context.ctx);
 		await emit(mock.events, "tool_execution_start", { toolName: "read" }, context.ctx);
-		assert.match(footer.render(200)[0] ?? "", /⚙️ read×2/u);
+		assert.match(footer.render(200).join("\n"), /⚙ read×2/u);
 		await emit(
 			mock.events,
 			"ui_prompt_start",
 			{ kind: "confirm", title: "Deploy production?" },
 			context.ctx,
 		);
-		assert.match(footer.render(200)[0] ?? "", /⌨ waiting for confirm · Deploy production\?/u);
+		assert.match(footer.render(200).join("\n"), /⌨ waiting for confirm · Deploy production\?/u);
 		await emit(mock.events, "ui_prompt_end", { kind: "confirm" }, context.ctx);
-		assert.match(footer.render(200)[0] ?? "", /⚙️ read×2/u);
+		assert.match(footer.render(200).join("\n"), /⚙ read×2/u);
 		await emit(mock.events, "tool_execution_end", { toolName: "read" }, context.ctx);
 		await emit(mock.events, "tool_execution_end", { toolName: "read" }, context.ctx);
-		assert.match(footer.render(200)[0] ?? "", /💭 thinking/u);
+		assert.match(footer.render(200).join("\n"), /◌ thinking/u);
 		await emit(mock.events, "ui_prompt_start", { kind: "custom" }, context.ctx);
-		assert.match(footer.render(200)[0] ?? "", /⌨ waiting for custom/u);
+		assert.match(footer.render(200).join("\n"), /⌨ waiting for custom/u);
 		await emit(mock.events, "ui_prompt_end", { kind: "custom" }, context.ctx);
-		assert.match(footer.render(200)[0] ?? "", /💭 thinking/u);
+		assert.match(footer.render(200).join("\n"), /◌ thinking/u);
 		await emit(mock.events, "agent_end", {}, context.ctx);
-		assert.match(footer.render(200)[0] ?? "", /💭 thinking/u);
+		assert.match(footer.render(200).join("\n"), /◌ thinking/u);
 		await emit(mock.events, "agent_settled", {}, context.ctx);
-		assert.doesNotMatch(footer.render(200)[0] ?? "", /💤|✅|⚙|💭/u);
+		assert.doesNotMatch(footer.render(200).join("\n"), /💤|✅|⚙|◌/u);
 
 		await emit(mock.events, "tool_execution_start", { toolName: "write" }, context.ctx);
 		await emit(mock.events, "session_shutdown", {}, context.ctx);
@@ -118,7 +121,7 @@ test("statusline activity appears only while streaming or tools are active and r
 		await emit(mock.events, "session_start", {}, replacement.ctx);
 		const replacementFooter = createFooter(replacement.footer as FooterFactory);
 		try {
-			assert.doesNotMatch(replacementFooter.render(200)[0] ?? "", /write|💤|✅|⚙|💭/u);
+			assert.doesNotMatch(replacementFooter.render(200).join("\n"), /write|💤|✅|⚙|◌/u);
 			await emit(mock.events, "agent_start", {}, replacement.ctx);
 			await emit(
 				mock.events,
@@ -130,11 +133,11 @@ test("statusline activity appears only while streaming or tools are active and r
 			await emit(mock.events, "agent_end", {}, context.ctx);
 			await emit(mock.events, "agent_settled", {}, context.ctx);
 			await emit(mock.events, "ui_prompt_end", { kind: "input" }, context.ctx);
-			assert.match(replacementFooter.render(200)[0] ?? "", /waiting for input · Current prompt/u);
+			assert.match(replacementFooter.render(200).join("\n"), /waiting for input · Current prompt/u);
 			await emit(mock.events, "ui_prompt_end", { kind: "input" }, replacement.ctx);
-			assert.match(replacementFooter.render(200)[0] ?? "", /💭 thinking/u);
+			assert.match(replacementFooter.render(200).join("\n"), /◌ thinking/u);
 			await emit(mock.events, "agent_settled", {}, replacement.ctx);
-			assert.doesNotMatch(replacementFooter.render(200)[0] ?? "", /💤|✅|⚙|💭/u);
+			assert.doesNotMatch(replacementFooter.render(200).join("\n"), /💤|✅|⚙|◌/u);
 		} finally {
 			replacementFooter.dispose();
 		}

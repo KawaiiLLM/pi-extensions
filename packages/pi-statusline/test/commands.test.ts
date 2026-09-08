@@ -22,6 +22,7 @@ import {
 	saveStatuslineSettingsDocument,
 	settingsFilePath,
 } from "../src/settings.js";
+import { PALETTE_PRESET_NAMES } from "../src/types.js";
 
 initTheme("dark", false);
 
@@ -470,7 +471,7 @@ test("segment menu toggles displayed segments and preserves JSON fields and layo
 			"Help",
 		]);
 		assert.deepEqual(selections[1]?.choices, [
-			"Custom layout (2/13 shown)",
+			"Custom layout (2/15 shown)",
 			"Edit settings JSON",
 			"Back",
 		]);
@@ -1166,7 +1167,7 @@ test("palette picker preserves custom colors and unknown fields while applying a
 	writeFileSync(
 		path,
 		JSON.stringify({
-			palette: { time: { fg: "#112233", bg: "#445566" } },
+			palette: [{ fg: "#112233", bg: "#445566" }],
 			future: { retained: true },
 		}),
 	);
@@ -1218,15 +1219,16 @@ test("palette picker preserves custom colors and unknown fields while applying a
 			"candy",
 			"neon",
 			"mono",
+			"prism",
 			"custom",
 		]) {
 			assert.match(pickerText, new RegExp(palettePreset, "u"));
 		}
-		assert.match(pickerText, /per-segment colors from settings JSON/u);
+		assert.match(pickerText, /colors in ramp order from settings JSON/u);
 		assert.equal(loaded.config.palettePreset, "ocean");
-		assert.deepEqual(loaded.config.palette.time, { fg: "#112233", bg: "#445566" });
+		assert.deepEqual(loaded.config.palette, [{ fg: "#112233", bg: "#445566" }]);
 		assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), {
-			palette: { time: { fg: "#112233", bg: "#445566" } },
+			palette: [{ fg: "#112233", bg: "#445566" }],
 			future: { retained: true },
 			palettePreset: "ocean",
 		});
@@ -1239,7 +1241,7 @@ test("palette picker preserves custom colors and unknown fields while applying a
 test("custom selection preserves an existing custom palette", async () => {
 	const root = mkdtempSync(join(tmpdir(), "pi-statusline-command-"));
 	const path = settingsFilePath(root);
-	const palette = { time: { fg: "#112233", bg: "#445566" } };
+	const palette = [{ fg: "#112233", bg: "#445566" }];
 	writeFileSync(path, JSON.stringify({ palettePreset: "custom", palette, future: true }));
 	try {
 		const mock = createMockPi();
@@ -1290,7 +1292,15 @@ test("custom selection materializes the active legacy preset without losing unkn
 				title.includes("Palette preset")
 					? choices.find((choice) => choice.startsWith("custom"))
 					: choices[0],
-			custom: customPalettePicker(["\u001b[B", "\u001b[B", "\u001b[B", "\u001b[B", "\r"]),
+			custom: customPalettePicker([
+				...Array.from(
+					{
+						length: PALETTE_PRESET_NAMES.indexOf("custom") - PALETTE_PRESET_NAMES.indexOf("forest"),
+					},
+					() => `${String.fromCharCode(27)}[B`,
+				),
+				String.fromCharCode(13),
+			]),
 		});
 
 		await mock.commands.get("statusline")?.handler("", context.ctx);
@@ -1298,12 +1308,10 @@ test("custom selection materializes the active legacy preset without losing unkn
 		const saved = JSON.parse(readFileSync(path, "utf8"));
 		assert.equal(saved.palettePreset, "custom");
 		assert.equal(saved.future, true);
-		assert.equal(Object.keys(saved.palette).length, 13);
-		assert.equal(saved.palette.model.bg, "#a7c080");
-		assert.equal(saved.palette.cwd.bg, "#83c092");
-		assert.equal(saved.palette.branch.bg, "#5f9f75");
-		assert.equal(saved.palette.tools.bg, "#3f6f55");
-		assert.equal(saved.palette.time.bg, "#293f35");
+		assert.deepEqual(
+			saved.palette.map((color: { bg: string }) => color.bg),
+			["#a7c080", "#83c092", "#5f9f75", "#3f6f55", "#293f35"],
+		);
 		assert.deepEqual(loaded.config.palette, saved.palette);
 		assert.equal(loaded.config.palettePreset, "custom");
 		assert.match(context.notifications.at(-1)?.message ?? "", /Edit settings JSON/u);
@@ -1384,9 +1392,9 @@ test("cancelled, invalid, and failed settings edits preserve file and runtime st
 		nextEdit = JSON.stringify({ palette: "invalid" });
 		await mock.commands.get("statusline")?.handler("", context.ctx);
 		assert.match(context.notifications.at(-1)?.message ?? "", /not saved.*palette/i);
-		nextEdit = JSON.stringify({ palette: { time: { fg: "red" } } });
+		nextEdit = JSON.stringify({ palette: [{ fg: "red" }] });
 		await mock.commands.get("statusline")?.handler("", context.ctx);
-		assert.match(context.notifications.at(-1)?.message ?? "", /not saved.*palette\.time\.fg/i);
+		assert.match(context.notifications.at(-1)?.message ?? "", /not saved.*palette\[0\]\.fg/i);
 		nextEdit = JSON.stringify({ future: "publish" });
 		await mock.commands.get("statusline")?.handler("", context.ctx);
 		assert.match(context.notifications.at(-1)?.message ?? "", /publish failed/i);

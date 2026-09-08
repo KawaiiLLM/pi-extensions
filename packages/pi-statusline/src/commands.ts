@@ -20,7 +20,7 @@ import {
 	type InformationProfileName,
 	inferInformationProfile,
 } from "./information-profiles.js";
-import { segmentPaletteForPreset } from "./presets/index.js";
+import { paletteForPreset } from "./presets/index.js";
 import {
 	DEFAULT_STATUSLINE_DOCUMENT,
 	type LoadedStatuslineSettings,
@@ -51,8 +51,10 @@ const SEGMENT_DESCRIPTIONS: Record<SegmentName, string> = {
 	tools: "Current tool and streaming activity",
 	context: "Current context-window usage",
 	tokens: "Session token totals",
-	cache: "Prompt-cache reads, writes, and latest hit rate",
+	cache: "Session prompt-cache hit rate",
 	cost: "Session cost",
+	five_hour: "Subscription short-window usage, alternating countdown and API-price value",
+	weekly: "Subscription weekly usage, alternating countdown and API-price value",
 	time: "Current local time",
 	turn: "Current session turn count",
 };
@@ -301,7 +303,8 @@ async function showPalettePresetPicker(
 		items: PALETTE_PRESET_NAMES.map((palettePreset) => ({
 			id: palettePreset,
 			label: palettePreset,
-			description: palettePreset === "custom" ? "per-segment colors from settings JSON" : undefined,
+			description:
+				palettePreset === "custom" ? "colors in ramp order from settings JSON" : undefined,
 		})),
 		currentItemId: current,
 		initialItemId: current,
@@ -567,6 +570,13 @@ async function editSettings(ctx: ExtensionCommandContext, options: StatuslineCom
 		current.rawDocument ?? DEFAULT_STATUSLINE_DOCUMENT,
 	);
 	if (edited === undefined) return;
+	if (options.getLoaded().rawDocument !== current.rawDocument) {
+		ctx.ui.notify(
+			"Settings changed while the editor was open; reopen it before saving.",
+			"warning",
+		);
+		return;
+	}
 	let loaded: LoadedStatuslineSettings;
 	try {
 		loaded = (options.save ?? saveStatuslineSettingsDocument)(options.settingsPath, edited);
@@ -598,11 +608,11 @@ function palettePresetDocument(
 	palettePreset: PalettePreset,
 ): string {
 	const { parsed } = editableSettings(current, "choosing a palette preset");
-	if (palettePreset === "custom" && !isRecord(parsed.palette)) {
+	if (palettePreset === "custom" && !Array.isArray(parsed.palette)) {
 		const seedPreset = isPaletteName(current.config.palettePreset)
 			? current.config.palettePreset
 			: "tokyo-night";
-		parsed.palette = segmentPaletteForPreset(seedPreset);
+		parsed.palette = paletteForPreset(seedPreset);
 	} else if (palettePreset !== "custom" && typeof parsed.palette === "string") {
 		delete parsed.palette;
 	}
@@ -907,9 +917,9 @@ function showHelp(ctx: ExtensionCommandContext, settingsPath: string) {
 			"Information levels: minimal, balanced, detailed; any other segment array is custom.",
 			"Advanced actions: Custom layout, Edit settings JSON, Back.",
 			`Settings: ${settingsPath}`,
-			"Fields: palettePreset, palette, density, separator, segments, segmentText, extensionStatusIcons",
-			"Named presets ignore but preserve palette; custom uses its per-segment fg/bg colors.",
-			"Responsive rows retain context, model, location, and active work before decorative data.",
+			"Fields: palettePreset, palette, density, separator, overflow, segments, segmentText, extensionStatusIcons",
+			"Named presets ignore but preserve palette; custom uses its fg/bg colors by segment position, cycling.",
+			"Overflow wraps segments onto further rows, or drops decorative data first when set to drop.",
 			"Custom layout can show, hide, reorder, or split data segments across rows.",
 			"Press M for move mode, Alt+Up/Alt+Down for quick move, and B for a line break.",
 			"Line breaks (line_break) may repeat when separated by data segments, but cannot be consecutive.",

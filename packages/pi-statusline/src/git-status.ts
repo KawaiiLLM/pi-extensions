@@ -124,7 +124,7 @@ export function formatGitBranchText(
 	status: GitStatusSummary | undefined,
 	pr?: string,
 ): string {
-	return `🌿 ${formatGitBranchValue(branch, status, pr)}`;
+	return `⎇ ${formatGitBranchValue(branch, status, pr)}`;
 }
 
 export function gitStatusSummaryEqual(

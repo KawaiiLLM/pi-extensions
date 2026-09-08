@@ -1,10 +1,12 @@
 import { homedir } from "node:os";
+import { join } from "node:path";
 import {
 	type ExtensionAPI,
 	type ExtensionContext,
 	getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { getCapabilities } from "@earendil-works/pi-tui";
+import { registerCodexFastMode } from "./codex-fast-runtime.js";
 import { completeStatuslineArguments } from "./command-contract.js";
 import type { StatuslineCommandOptions } from "./commands.js";
 import {
@@ -18,11 +20,13 @@ import { type RuntimeState, renderExtensionStatusline, renderStatusline } from "
 import {
 	consumeStatuslineSettingsNotice,
 	type LoadedStatuslineSettings,
-	loadStatuslineSettings,
 	loadStatuslineSettingsForAgent,
+	saveCodexFastMode,
 	settingsFilePath,
 } from "./settings.js";
 import type { PalettePreset } from "./types.js";
+import { createUsageRefresher } from "./usage-refresh.js";
+import { CAROUSEL_PERIOD_MS } from "./usage-windows.js";
 
 const STATUSLINE_KEY = "statusline";
 const GIT_STATUS_REFRESH_INTERVAL_MS = 30_000;
@@ -66,6 +70,13 @@ export default function statusline(pi: ExtensionAPI) {
 
 	const refresh = () => runtime.requestRender?.();
 	const ownsRuntime = (ctx: ExtensionContext) => ctx.sessionManager === activeSessionManager;
+	const usage = createUsageRefresher(pi, {
+		sessionsDir: join(getAgentDir(), "sessions"),
+		onUpdate(value) {
+			runtime.usage = value;
+			refresh();
+		},
+	});
 
 	const setGitStatus = (summary: GitStatusSummary | undefined) => {
 		if (gitStatusSummaryEqual(runtime.gitStatus, summary)) return;
@@ -149,6 +160,8 @@ export default function statusline(pi: ExtensionAPI) {
 		clearGitStatusDebounce();
 		activeGitStatusTarget = ctx.mode === "tui" ? { cwd, generation } : undefined;
 		runtime.gitStatus = undefined;
+		usage.stop();
+		runtime.usage = undefined;
 		runtime.duplicateExtensions = [];
 		runtime.extensionStatusIconAliases = EMPTY_EXTENSION_STATUS_ICON_ALIASES;
 		ctx.ui.setStatus(STATUSLINE_KEY, undefined);
@@ -172,11 +185,17 @@ export default function statusline(pi: ExtensionAPI) {
 				refreshFooterGitStatus();
 				tui.requestRender();
 			}, GIT_STATUS_REFRESH_INTERVAL_MS);
+			// Subscription windows alternate between their countdown and their price;
+			// nothing else changes on this cadence, so the tick is a bare redraw.
+			const carousel = setInterval(() => {
+				if (runtime.usage) tui.requestRender();
+			}, CAROUSEL_PERIOD_MS);
 
 			return {
 				dispose() {
 					branchUnsubscribe();
 					clearInterval(clock);
+					clearInterval(carousel);
 					if (isActiveGitStatusTarget(cwd, generation)) {
 						activeGitStatusTarget = undefined;
 						abortGitStatusRefresh("Statusline footer disposed");
@@ -221,13 +240,23 @@ export default function statusline(pi: ExtensionAPI) {
 			};
 		});
 		refreshGitStatus(cwd, generation);
+		usage.refresh(ctx);
 	};
 
 	const agentDir = getAgentDir();
 	const configPath = settingsFilePath(agentDir);
+	const fast = registerCodexFastMode(pi, {
+		getLoaded: () => loaded ?? loadStatuslineSettingsForAgent(agentDir),
+		owns: ownsRuntime,
+		save(ctx, enabled) {
+			if (!ownsRuntime(ctx)) throw new Error("Session changed.");
+			loaded = saveCodexFastMode(configPath, enabled);
+			refresh();
+		},
+	});
 	const commandOptions: StatuslineCommandOptions = {
 		settingsPath: configPath,
-		getLoaded: () => loaded ?? loadStatuslineSettings(configPath),
+		getLoaded: () => loadStatuslineSettingsForAgent(agentDir),
 		getMenuOwner: () => {
 			const generation = sessionGeneration;
 			return {
@@ -247,6 +276,26 @@ export default function statusline(pi: ExtensionAPI) {
 			refresh();
 		},
 	};
+	pi.registerCommand("usage", {
+		description: "Show current subscription usage and Codex actions",
+		handler: async (args, ctx) => {
+			if (!ctx.hasUI) throw new Error("/usage requires TUI or RPC mode.");
+			if (args.trim()) {
+				ctx.ui.notify("/usage does not accept arguments.", "warning");
+				return;
+			}
+			const generation = sessionGeneration;
+			const signal = menuController.signal;
+			const { showUsageMenu } = await import("./usage-menu.js");
+			if (!ownsRuntime(ctx) || generation !== sessionGeneration || signal.aborted) return;
+			await showUsageMenu(ctx, {
+				usage,
+				fast,
+				signal,
+				isCurrent: () => ownsRuntime(ctx) && generation === sessionGeneration,
+			});
+		},
+	});
 	pi.registerCommand("statusline", {
 		description: "Open or inspect the statusline settings",
 		getArgumentCompletions: completeStatuslineArguments,
@@ -288,6 +337,8 @@ export default function statusline(pi: ExtensionAPI) {
 		clearGitStatusDebounce();
 		pendingGitStatusRefresh = undefined;
 		runtime.gitStatus = undefined;
+		usage.stop();
+		runtime.usage = undefined;
 		runtime.activeTools.clear();
 		runtime.isStreaming = false;
 		runtime.uiPrompt = undefined;
@@ -298,7 +349,10 @@ export default function statusline(pi: ExtensionAPI) {
 		runtime.requestRender = undefined;
 	});
 
-	pi.on("model_select", () => refresh());
+	pi.on("model_select", (_event, ctx) => {
+		if (ownsRuntime(ctx)) usage.refresh(ctx);
+		refresh();
+	});
 
 	pi.on("thinking_level_select", (event) => {
 		runtime.thinkingLevel = event.level;
@@ -339,6 +393,7 @@ export default function statusline(pi: ExtensionAPI) {
 
 	pi.on("turn_start", (_event, ctx) => {
 		if (!ownsRuntime(ctx)) return;
+		usage.refresh(ctx);
 		runtime.turnCount += 1;
 		runtime.isStreaming = true;
 		refresh();
@@ -398,9 +453,9 @@ export {
 	readGitStatus,
 } from "./git-status.js";
 export {
-	contextColor,
 	formatCount,
 	formatToolActivity,
+	percentAlert,
 	prContextFromStatuses,
 	prLinkFromStatuses,
 	shortenModel,

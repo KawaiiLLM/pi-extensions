@@ -3,18 +3,19 @@ import { lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync }
 import { dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { INFORMATION_PROFILES } from "./information-profiles.js";
-import { segmentPaletteForPreset } from "./presets/index.js";
+import { paletteForPreset } from "./presets/index.js";
 import {
 	type ConfigSegmentName,
 	DENSITIES,
 	LINE_BREAK_SEGMENT_NAME,
+	OVERFLOW_MODES,
 	PALETTE_NAMES,
 	PALETTE_PRESET_NAMES,
+	type PaletteColor,
 	type PaletteName,
 	SEGMENT_NAMES,
 	SEPARATOR_NAMES,
 	type SegmentName,
-	type SegmentPalette,
 	type StatuslineConfig,
 	TRUNCATION_DIRECTIONS,
 } from "./types.js";
@@ -54,30 +55,34 @@ const DEFAULT_SEGMENTS: SegmentName[] = [...INFORMATION_PROFILES.balanced];
 
 export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = {
 	palettePreset: "tokyo-night",
-	palette: segmentPaletteForPreset("tokyo-night"),
+	palette: paletteForPreset("tokyo-night"),
 	density: "compact",
 	separator: "none",
+	overflow: "wrap",
+	codexFastMode: false,
 	segments: DEFAULT_SEGMENTS,
 	segmentText: {
 		brand: { prefix: "", suffix: "" },
-		provider: { prefix: "🔌 ", suffix: "" },
+		provider: { prefix: "⇄ ", suffix: "" },
 		model: {
-			prefix: "🤖 ",
+			prefix: "✱ ",
 			suffix: "",
 			truncationLength: 36,
 			truncationSymbol: "…",
 			truncationDirection: "start",
 		},
-		thinking: { prefix: "🧠 ", suffix: "" },
-		cwd: { prefix: "📁 ", suffix: "" },
-		branch: { prefix: "🌿 ", suffix: "" },
+		thinking: { prefix: "◈ ", suffix: "" },
+		cwd: { prefix: "", suffix: "" },
+		branch: { prefix: "⎇ ", suffix: "" },
 		tools: { prefix: "", suffix: "" },
-		context: { prefix: "🪟 ctx ", suffix: "" },
-		tokens: { prefix: "🔢 ", suffix: "" },
-		cache: { prefix: "📦 ", suffix: "" },
-		cost: { prefix: "💸 $", suffix: "" },
-		time: { prefix: "🕒 ", suffix: "" },
-		turn: { prefix: "🔁 #", suffix: "" },
+		context: { prefix: "◔ ", suffix: "" },
+		tokens: { prefix: "§ ", suffix: "" },
+		cache: { prefix: "⌁ ", suffix: "" },
+		cost: { prefix: "☉ ", suffix: "" },
+		five_hour: { prefix: "◒ ", suffix: "" },
+		weekly: { prefix: "◑ ", suffix: "" },
+		time: { prefix: "◷ ", suffix: "" },
+		turn: { prefix: "#", suffix: "" },
 	},
 	extensionStatusIcons: DEFAULT_EXTENSION_STATUS_ICONS,
 };
@@ -86,6 +91,8 @@ const DEFAULT_STATUSLINE_DOCUMENT_CONFIG = {
 	palettePreset: DEFAULT_STATUSLINE_CONFIG.palettePreset,
 	density: DEFAULT_STATUSLINE_CONFIG.density,
 	separator: DEFAULT_STATUSLINE_CONFIG.separator,
+	overflow: DEFAULT_STATUSLINE_CONFIG.overflow,
+	codexFastMode: DEFAULT_STATUSLINE_CONFIG.codexFastMode,
 	segments: DEFAULT_SEGMENTS,
 	segmentText: DEFAULT_STATUSLINE_CONFIG.segmentText,
 	extensionStatusIcons: DEFAULT_DOCUMENT_EXTENSION_STATUS_ICONS,
@@ -147,6 +154,8 @@ export function normalizeStatuslineConfig(value: unknown): {
 		"palette",
 		"density",
 		"separator",
+		"overflow",
+		"codexFastMode",
 		"segments",
 		"segmentText",
 		"extensionStatusIcons",
@@ -155,13 +164,19 @@ export function normalizeStatuslineConfig(value: unknown): {
 		if (!knownRoot.has(key)) diagnostics.push(unknownDiagnostic(key));
 	}
 
+	if (value.codexFastMode !== undefined) {
+		if (typeof value.codexFastMode === "boolean") config.codexFastMode = value.codexFastMode;
+		else diagnostics.push(invalidDiagnostic("codexFastMode", "Expected a boolean"));
+	}
+
 	normalizePalette(value.palette, config, diagnostics);
 	normalizeEnum(value, "palettePreset", PALETTE_PRESET_NAMES, config, diagnostics);
-	if (!isRecord(value.palette) && isPaletteName(config.palettePreset)) {
-		config.palette = segmentPaletteForPreset(config.palettePreset);
+	if (!Array.isArray(value.palette) && isPaletteName(config.palettePreset)) {
+		config.palette = paletteForPreset(config.palettePreset);
 	}
 	normalizeEnum(value, "density", DENSITIES, config, diagnostics);
 	normalizeEnum(value, "separator", SEPARATOR_NAMES, config, diagnostics);
+	normalizeEnum(value, "overflow", OVERFLOW_MODES, config, diagnostics);
 
 	if (value.segments !== undefined) {
 		if (!Array.isArray(value.segments)) {
@@ -400,6 +415,19 @@ export function saveStatuslineSettingsDocument(
 	};
 }
 
+export function saveCodexFastMode(
+	settingsPath: string,
+	enabled: boolean,
+): LoadedStatuslineSettings {
+	const current = loadStatuslineSettingsForAgent(dirname(settingsPath));
+	if (current.diagnostics.some((item) => item.code !== "unknown")) {
+		throw new Error("Repair pi-statusline.json before changing Fast mode.");
+	}
+	const document = JSON.parse(current.rawDocument ?? "{}") as Record<string, unknown>;
+	document.codexFastMode = enabled;
+	return saveStatuslineSettingsDocument(settingsPath, `${JSON.stringify(document, null, "\t")}\n`);
+}
+
 export function removeStatuslineSettingsDocumentIfMatches(
 	settingsPath: string,
 	expectedRawDocument: string,
@@ -461,7 +489,7 @@ function normalizePalette(
 			diagnostics.push(
 				invalidDiagnostic(
 					"palette",
-					`Expected a palette object or one of: ${PALETTE_NAMES.join(", ")}`,
+					`Expected an array of colors in ramp order or one of: ${PALETTE_NAMES.join(", ")}`,
 				),
 			);
 			return;
@@ -469,25 +497,23 @@ function normalizePalette(
 		config.palettePreset = value as (typeof PALETTE_NAMES)[number];
 		return;
 	}
-	if (!isRecord(value)) {
-		diagnostics.push(invalidDiagnostic("palette", "Expected a palette object"));
+	if (!Array.isArray(value)) {
+		diagnostics.push(
+			invalidDiagnostic("palette", "Expected an array of { fg, bg } colors in ramp order"),
+		);
 		return;
 	}
 
-	const palette: SegmentPalette = {};
+	const palette: PaletteColor[] = [];
 	config.palette = palette;
-	for (const [name, colors] of Object.entries(value)) {
-		const path = `palette.${name}`;
-		if (!isSegmentName(name)) {
-			diagnostics.push(unknownDiagnostic(path));
-			continue;
-		}
+	for (const [index, colors] of value.entries()) {
+		const path = `palette[${index}]`;
 		if (!isRecord(colors)) {
 			diagnostics.push(invalidDiagnostic(path, "Expected an object"));
 			continue;
 		}
-		const normalizedColors: NonNullable<SegmentPalette[SegmentName]> = {};
-		palette[name] = normalizedColors;
+		const normalizedColors: PaletteColor = {};
+		palette.push(normalizedColors);
 		for (const [field, color] of Object.entries(colors)) {
 			const colorPath = `${path}.${field}`;
 			if (field !== "fg" && field !== "bg") {
@@ -565,7 +591,7 @@ function isSafeSegmentText(
 }
 
 function normalizeEnum<
-	K extends "palettePreset" | "density" | "separator",
+	K extends "palettePreset" | "density" | "separator" | "overflow",
 	T extends StatuslineConfig[K],
 >(
 	value: Record<string, unknown>,
@@ -585,16 +611,10 @@ function normalizeEnum<
 	config[field] = candidate as StatuslineConfig[K];
 }
 
-function cloneSegmentPalette(palette: SegmentPalette): SegmentPalette {
-	return Object.fromEntries(
-		Object.entries(palette).map(([name, colors]) => [name, { ...colors }]),
-	) as SegmentPalette;
-}
-
 function cloneConfig(config: StatuslineConfig): StatuslineConfig {
 	return {
 		...config,
-		palette: cloneSegmentPalette(config.palette),
+		palette: config.palette.map((colors) => ({ ...colors })),
 		segments: [...config.segments],
 		segmentText: Object.fromEntries(
 			SEGMENT_NAMES.map((name) => [name, { ...config.segmentText[name] }]),

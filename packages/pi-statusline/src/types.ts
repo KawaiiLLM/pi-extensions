@@ -12,6 +12,8 @@ export const SEGMENT_NAMES = [
 	"tokens",
 	"cache",
 	"cost",
+	"five_hour",
+	"weekly",
 	"time",
 	"turn",
 ] as const;
@@ -28,6 +30,7 @@ export const PALETTE_NAMES = [
 	"candy",
 	"neon",
 	"mono",
+	"prism",
 ] as const;
 export type PaletteName = (typeof PALETTE_NAMES)[number];
 
@@ -43,7 +46,8 @@ export type SeparatorName = (typeof SEPARATOR_NAMES)[number];
 export const TRUNCATION_DIRECTIONS = ["start", "middle", "end"] as const;
 export type TruncationDirection = (typeof TRUNCATION_DIRECTIONS)[number];
 
-export type PowerlineBlockName = "header" | "directory" | "git" | "runtime" | "meter";
+export const OVERFLOW_MODES = ["wrap", "drop"] as const;
+export type OverflowMode = (typeof OVERFLOW_MODES)[number];
 
 export interface SegmentTextConfig {
 	prefix: string;
@@ -56,18 +60,23 @@ export interface ModelSegmentTextConfig extends SegmentTextConfig {
 	truncationDirection: TruncationDirection;
 }
 
-export interface SegmentPaletteColor {
+export interface PaletteColor {
 	fg?: string;
 	bg?: string;
 }
 
-export type SegmentPalette = Partial<Record<SegmentName, SegmentPaletteColor>>;
-
 export interface StatuslineConfig {
 	palettePreset: PalettePreset;
-	palette: SegmentPalette;
+	/**
+	 * Colours in ramp order. The n-th visible segment of a row takes the n-th
+	 * entry, wrapping around when the row has more segments than the ramp.
+	 */
+	palette: PaletteColor[];
 	density: Density;
 	separator: SeparatorName;
+	/** What a row does with segments that do not fit: continue on a new row, or shed by priority. */
+	overflow: OverflowMode;
+	codexFastMode: boolean;
 	segments: ConfigSegmentName[];
 	segmentText: Record<SegmentName, SegmentTextConfig> & { model: ModelSegmentTextConfig };
 	extensionStatusIcons: Record<string, string>;
@@ -77,8 +86,9 @@ export interface RenderSegment {
 	name: SegmentName;
 	text: string;
 	color: ThemeColor;
-	block: PowerlineBlockName;
 	emphasis?: boolean;
+	/** Swap foreground and background when the segment's alert condition is met. */
+	alert?: boolean;
 }
 
 export interface RenderLineBreak {

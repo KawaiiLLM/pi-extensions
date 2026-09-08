@@ -2,33 +2,41 @@ import type { Theme } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { ansiStyle } from "./ansi.js";
 import { resolvePreset } from "./presets/index.js";
-import type { BlockColors, PowerlinePreset } from "./presets/types.js";
+import type { PowerlinePreset } from "./presets/types.js";
 import {
 	LINE_BREAK_SEGMENT_NAME,
+	type PaletteColor,
 	type PalettePreset,
-	type PowerlineBlockName,
 	type RenderItem,
 	type RenderSegment,
-	type SegmentPalette,
 	type SeparatorName,
 	type StatuslineConfig,
 } from "./types.js";
 
+type PowerlineConfig = Pick<
+	StatuslineConfig,
+	"palettePreset" | "palette" | "density" | "separator" | "overflow"
+>;
+
 interface PowerlineBlock {
-	baseBlock: PowerlineBlockName;
-	colors: BlockColors;
+	colors: PaletteColor;
 	segments: RenderSegment[];
+	/** An alerting segment keeps its own block so the fill reads against its neighbours. */
+	alert: boolean;
 }
 
 export function renderPowerlineStatusline(
 	width: number,
 	items: RenderItem[],
-	config: Pick<StatuslineConfig, "palettePreset" | "palette" | "density" | "separator">,
+	config: PowerlineConfig,
 	trueColor = true,
 ): string {
 	if (items.length === 0 || width <= 0) return "";
 	return splitLines(items)
-		.map((segments) => fitPowerlineSegments(segments, width, config, trueColor))
+		.flatMap((segments) => layoutRows(segments, width, config, trueColor))
+		.map((segments) =>
+			segments.length === 0 ? "" : joinPowerlineSegments(segments, config, trueColor),
+		)
 		.join("\n");
 }
 
@@ -41,11 +49,52 @@ function splitLines(items: RenderItem[]): RenderSegment[][] {
 	return lines;
 }
 
+/**
+ * Each row spans at most one background cycle. Wrapping carries what does
+ * not fit onto the next row; dropping sheds segments by priority until the row
+ * fits. A segment too wide for a row on its own is left out either way, and an
+ * empty explicit row stays an empty row.
+ */
+function layoutRows(
+	segments: readonly RenderSegment[],
+	width: number,
+	config: PowerlineConfig,
+	trueColor: boolean,
+): RenderSegment[][] {
+	if (segments.length === 0) return [[]];
+	const cycleLength = rampFor(config).length || Number.POSITIVE_INFINITY;
+	if (config.overflow === "drop") {
+		const rows: RenderSegment[][] = [];
+		for (let start = 0; start < segments.length; start += cycleLength) {
+			rows.push(
+				fitPowerlineSegments(segments.slice(start, start + cycleLength), width, config, trueColor),
+			);
+		}
+		return rows;
+	}
+	const fits = (row: RenderSegment[]) =>
+		visibleWidth(joinPowerlineSegments(row, config, trueColor)) <= width;
+	const rows: RenderSegment[][] = [];
+	let row: RenderSegment[] = [];
+	for (const segment of segments) {
+		if (row.length < cycleLength && fits([...row, segment])) {
+			row.push(segment);
+			continue;
+		}
+		if (row.length > 0) rows.push(row);
+		row = fits([segment]) ? [segment] : [];
+	}
+	if (row.length > 0) rows.push(row);
+	return rows.length > 0 ? rows : [[]];
+}
+
 const SEGMENT_RETENTION_PRIORITY: Readonly<Record<RenderSegment["name"], number>> = {
 	context: 120,
 	model: 110,
 	branch: 100,
+	weekly: 95,
 	tools: 90,
+	five_hour: 85,
 	cwd: 80,
 	thinking: 70,
 	cost: 60,
@@ -60,14 +109,12 @@ const SEGMENT_RETENTION_PRIORITY: Readonly<Record<RenderSegment["name"], number>
 function fitPowerlineSegments(
 	segments: readonly RenderSegment[],
 	width: number,
-	config: Pick<StatuslineConfig, "palettePreset" | "palette" | "density" | "separator">,
+	config: PowerlineConfig,
 	trueColor: boolean,
-): string {
-	if (segments.length === 0) return "";
+): RenderSegment[] {
 	const fitted = [...segments];
 	while (fitted.length > 1) {
-		const rendered = joinPowerlineSegments(fitted, config, trueColor);
-		if (visibleWidth(rendered) <= width) return rendered;
+		if (visibleWidth(joinPowerlineSegments(fitted, config, trueColor)) <= width) return fitted;
 		let removalIndex = 0;
 		for (let index = 1; index < fitted.length; index += 1) {
 			const candidate = fitted[index];
@@ -82,8 +129,7 @@ function fitPowerlineSegments(
 		}
 		fitted.splice(removalIndex, 1);
 	}
-	const rendered = joinPowerlineSegments(fitted, config, trueColor);
-	return visibleWidth(rendered) <= width ? rendered : "";
+	return visibleWidth(joinPowerlineSegments(fitted, config, trueColor)) <= width ? fitted : [];
 }
 
 export function powerlineExtensionSeparator(
@@ -95,59 +141,72 @@ export function powerlineExtensionSeparator(
 }
 
 function joinPowerlineSegments(
-	segments: RenderSegment[],
-	config: Pick<StatuslineConfig, "palettePreset" | "palette" | "density" | "separator">,
+	segments: readonly RenderSegment[],
+	config: PowerlineConfig,
 	trueColor: boolean,
 ): string {
 	const preset = resolvePreset(config.palettePreset);
-	const blocks = contiguousBlocks(segments, preset, config.palettePreset, config.palette);
+	const blocks = contiguousBlocks(segments, rampFor(config), preset.foreground);
 	let line = ansiStyle("░▒▓", { fg: preset.lead }, trueColor);
 
 	for (const [index, block] of blocks.entries()) {
-		const previous = index === 0 ? undefined : blocks[index - 1]?.colors;
+		const previous = index === 0 ? undefined : blocks[index - 1];
 		if (previous) {
-			line += ansiStyle("", { fg: previous.bg, bg: block.colors.bg }, trueColor);
+			line += ansiStyle(
+				"\ue0b4",
+				{ fg: blockBackground(previous), bg: blockBackground(block) },
+				trueColor,
+			);
 		}
-		line += ansiStyle(formatBlockText(block, config), block.colors, trueColor);
+		line += ansiStyle(formatBlockText(block, config), block.colors, trueColor, block.alert);
 	}
 
 	const lastBlock = blocks.at(-1);
-	if (lastBlock) line += ansiStyle("", { fg: lastBlock.colors.bg }, trueColor);
+	if (lastBlock) line += ansiStyle("\ue0b4", { fg: blockBackground(lastBlock) }, trueColor);
 	return line;
 }
 
+function rampFor(config: PowerlineConfig): readonly PaletteColor[] {
+	return config.palettePreset === "custom"
+		? config.palette
+		: resolvePreset(config.palettePreset).ramp;
+}
+
+/**
+ * Colours go by position: the n-th segment of the row takes the n-th ramp
+ * entry, cycling once the ramp is used up. Neighbours that end up with the
+ * same colours share one block within that row. Layout prevents a second cycle.
+ */
 function contiguousBlocks(
-	segments: RenderSegment[],
-	preset: PowerlinePreset,
-	palettePreset: PalettePreset,
-	configuredPalette: SegmentPalette,
+	segments: readonly RenderSegment[],
+	ramp: readonly PaletteColor[],
+	foreground?: PowerlinePreset["foreground"],
 ): PowerlineBlock[] {
 	const blocks: PowerlineBlock[] = [];
-	const usesConfiguredColors = palettePreset === "custom";
-	for (const segment of segments) {
-		const colors = usesConfiguredColors
-			? (configuredPalette[segment.name] ?? {})
-			: preset.blocks[segment.block];
+	for (const [index, segment] of segments.entries()) {
+		const base = ramp.length > 0 ? (ramp[index % ramp.length] ?? {}) : {};
+		const colors = foreground ? { ...base, fg: foreground(segment.name, base) } : base;
 		const previous = blocks.at(-1);
-		const matchesPrevious =
+		const joins =
 			previous !== undefined &&
-			(usesConfiguredColors
-				? colorsEqual(previous.colors, colors)
-				: previous.baseBlock === segment.block);
-		if (matchesPrevious) previous.segments.push(segment);
-		else blocks.push({ baseBlock: segment.block, colors, segments: [segment] });
+			!previous.alert &&
+			!segment.alert &&
+			colorsEqual(previous.colors, colors);
+		if (joins) previous.segments.push(segment);
+		else blocks.push({ colors, segments: [segment], alert: segment.alert === true });
 	}
 	return blocks;
 }
 
-function colorsEqual(left: BlockColors, right: BlockColors): boolean {
+function blockBackground(block: PowerlineBlock): string | undefined {
+	return block.alert ? block.colors.fg : block.colors.bg;
+}
+
+function colorsEqual(left: PaletteColor, right: PaletteColor): boolean {
 	return left.fg === right.fg && left.bg === right.bg;
 }
 
-function formatBlockText(
-	block: PowerlineBlock,
-	config: Pick<StatuslineConfig, "density" | "separator">,
-): string {
+function formatBlockText(block: PowerlineBlock, config: PowerlineConfig): string {
 	const texts = block.segments.map(formatSegmentText);
 	const separator = separatorText(config.separator, config.density === "cozy");
 	const leading = config.density === "cozy" ? "  " : " ";
@@ -167,7 +226,7 @@ function separatorText(separator: SeparatorName, cozy: boolean): string {
 		case "bar":
 			return `${padding}│${padding}`;
 		case "powerline":
-			return `${padding}${padding}`;
+			return `${padding}\ue0b5${padding}`;
 		case "round":
 			return `${padding}❯${padding}`;
 		case "none":

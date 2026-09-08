@@ -1,20 +1,10 @@
-import type { PowerlineBlockName } from "../types.js";
 import type { PowerlinePreset } from "./types.js";
 
-const BLOCK_NAMES: PowerlineBlockName[] = ["header", "directory", "git", "runtime", "meter"];
-
-type PaletteRamp = readonly [string, string, string, string, string];
-
-export function createRampPreset(backgrounds: PaletteRamp): PowerlinePreset {
+export function createRampPreset(backgrounds: readonly string[]): PowerlinePreset {
 	return {
 		lead: backgrounds[0],
-		blocks: Object.fromEntries(
-			BLOCK_NAMES.map((block, index) => {
-				const background = backgrounds[index];
-				return [block, { fg: contrastColor(background), bg: background }];
-			}),
-		) as Record<PowerlineBlockName, { fg: string; bg: string }>,
-		extensionSeparator: backgrounds[2],
+		ramp: backgrounds.map((background) => ({ fg: contrastColor(background), bg: background })),
+		extensionSeparator: backgrounds[2] ?? backgrounds.at(-1),
 	};
 }
 
@@ -27,11 +17,11 @@ function contrastColor(hex: string): string {
 		: "#f0f0f0";
 }
 
-function contrastRatio(left: number, right: number): number {
+export function contrastRatio(left: number, right: number): number {
 	return (Math.max(left, right) + 0.05) / (Math.min(left, right) + 0.05);
 }
 
-function relativeLuminance(hex: string): number {
+export function relativeLuminance(hex: string): number {
 	const normalized = hex.slice(1);
 	const channels = [0, 2, 4].map((offset) => {
 		const value = Number.parseInt(normalized.slice(offset, offset + 2), 16) / 255;

@@ -1,0 +1,208 @@
+<!doctype html>
+<!-- Standalone design experiment. No network requests and no changes to Pi settings.
+     Screenshots/preset source supply layout and colors; all usage numbers below are illustrative.
+     Proposed layout: restart the palette on every row; wrap before a new palette cycle or when width runs out.
+     Proposed Prism color rule: hold hue/chroma, adjust OKLCH lightness; reduce chroma only when no in-gamut solution meets contrast. -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>状态栏配色预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#faf9f6;color:#29282a;font:15px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
+main{max-width:1520px;margin:36px auto;padding:0 30px}h1{font-size:24px;font-weight:600;margin:0 0 5px}p{margin:0;color:#747174}.intro{margin-bottom:24px}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:16px 24px;padding:18px 0;border-top:1px solid #dedcd8;border-bottom:1px solid #dedcd8}
+label{display:flex;align-items:center;gap:8px;white-space:nowrap}select,button,input[type=text]{font:inherit;border:1px solid #cecbc6;border-radius:5px;background:#fff;color:#29282a;padding:5px 9px}
+button{cursor:pointer}button:hover{background:#eeece7}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #476a80;outline-offset:3px}
+input[type=range]{width:112px;accent-color:#526e80}input[type=checkbox]{accent-color:#526e80}output{font-variant-numeric:tabular-nums;min-width:34px;color:#526e80}
+.bg-control{margin:16px 0;display:flex;gap:10px;flex-wrap:wrap;align-items:center}.bg-control label{flex:1;min-width:260px}.bg-control input{width:100%;font:13px/1.5 Menlo,Consolas,monospace}.error{color:#a03139;font-size:13px;min-height:22px}
+.text-controls{margin:16px 0}.text-controls summary{cursor:pointer;font-weight:600}.text-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 18px;margin-top:12px}.text-field{display:flex;align-items:center;gap:7px}.text-field label{min-width:58px;font-size:13px}.text-field input[type=color]{width:30px;height:30px;padding:0;border:0;background:none;cursor:pointer;flex:none}.text-field input[type=text]{width:104px;font:13px Menlo,monospace}.text-field input[aria-invalid=true]{border-color:#a03139}.text-hint{font-size:12px;margin-top:9px;color:#747174}#text-error{font-size:12px;color:#a03139}
+.preview{margin:24px 0}.caption{display:flex;justify-content:space-between;gap:20px;align-items:baseline;margin-bottom:9px}.caption h2{font-size:15px;font-weight:600;margin:0}.caption span{font-size:12px;color:#777}
+.terminal{background:#f5ecd7;border:1px solid #e6dfcf;border-radius:6px;min-height:160px;padding:29px 18px;overflow:hidden;transition:background .1s}
+.footer-row{display:flex;align-items:stretch;width:max-content;max-width:100%;margin:0 0 3px;font:20px/1.55 Menlo,Consolas,"DejaVu Sans Mono",monospace}
+.footer-row:last-child{margin-bottom:0}.lead{flex:none;white-space:pre}.segment{position:relative;flex:none;white-space:pre;padding:0 9px 0 17px;background:var(--bg);color:var(--fg);cursor:pointer;border:0;font:inherit}
+.segment::after{content:"";position:absolute;left:100%;top:0;width:12px;height:100%;border-radius:0 50% 50% 0;background:var(--bg);z-index:2;pointer-events:none}.segment:focus-visible{outline:2px solid currentColor;outline-offset:-3px}.segment:last-child{margin-right:12px}
+.details{background:#fff;border:1px solid #dedcd8;padding:12px 16px;border-radius:5px;font-size:13px;min-height:50px}.details code{font:12px Menlo,monospace}.note{font-size:13px;margin-top:13px}.muted{opacity:.6}.legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:20px;font-size:13px}.swatch{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:0}
+@media(max-width:600px){main{margin:22px auto;padding:0 14px}.controls{gap:12px}.terminal{padding:20px 9px}.caption{display:block}.caption span{display:block}input[type=range]{width:94px}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<header class="intro"><h1>状态栏配色预览</h1><p>先比较效果，不改正式扩展。下方为示例数据；点击字段可查看实际颜色。</p></header>
+<div class="controls">
+<label>主题 <select id="theme"><option value="prism">Prism</option><option value="mono">Mono</option><option value="tokyo-night">Tokyo Night</option><option value="ocean">Ocean</option><option value="sunset">Sunset</option><option value="forest">Forest</option><option value="candy">Candy</option><option value="neon">Neon</option></select></label>
+<label>宽度 <input id="columns" type="range" min="60" max="180" value="140"><output id="columns-out">140</output>列</label>
+<label><input id="cycle" type="checkbox" checked>每个色带周期换行</label>
+<label><input id="alerts" type="checkbox">触发告警</label>
+<label><input id="dark" type="checkbox">深色终端</label>
+<button id="rotate" type="button">轮换字段位置</button><button id="reset" type="button">还原</button>
+</div>
+<div class="bg-control"><label>背景色 <input id="backgrounds" type="text" spellcheck="false" aria-label="逗号分隔的背景色"></label></div>
+<details class="text-controls" open><summary>文字色 · 每个字段独立填写</summary><div id="text-grid" class="text-grid"></div><p class="text-hint">支持 #RGB 或 #RRGGBB，也可点击色块选择。留空使用主题默认色；上方原样显示，下方按背景调整明度。修改只保留在当前 demo 页面。</p><div id="text-error" role="status"></div></details>
+<div class="controls" style="border-top:0;padding-top:0">
+<label>文字彩度 <input id="chroma" type="range" min="0.03" max="0.16" step="0.01" value="0.10"><output id="chroma-out">0.10</output></label>
+<label>最低对比度 <input id="contrast" type="range" min="2.5" max="7" step="0.5" value="4"><output id="contrast-out">4.0</output></label>
+<span style="font-size:13px;color:#777">彩度只控制 Prism 默认色，不改变手填色值。</span>
+</div>
+<div id="error" class="error" role="status"></div>
+<section class="preview"><div class="caption"><h2>固定文字色</h2><span>对照：不随背景调明暗</span></div><div id="fixed" class="terminal"></div></section>
+<section class="preview"><div class="caption"><h2>按底色调整文字明度</h2><span id="adaptive-caption">色相不变，优先保留彩度</span></div><div id="adaptive" class="terminal"></div></section>
+<div id="inspect" class="details" aria-live="polite">点击任一字段，查看色值、明度、彩度和对比度。</div>
+<p class="note">换行规则：一行最多一个完整色带周期，宽度不足时提前换行，新行从第一色开始；超宽的单个字段略过。此规则对所有主题生效。</p>
+<p class="note">明度调整用于 Prism 默认彩色字段及任何手动填写的文字色。固定彩度无法同时满足显示色域与对比度时，才逐步降低彩度；点击字段可检查是否发生。告警统一交换最终前景／背景：上下文、订阅 ≥80%，缓存 ≤50%。</p>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const gray=['#d4d4d4','#a3a3a3','#686868','#404040','#262626'];
+const presets={
+ prism:{bg:gray,fg:['#090c0c','#090c0c','#f0f0f0','#f0f0f0','#f0f0f0']},
+ mono:{bg:gray,fg:['#090c0c','#090c0c','#f0f0f0','#f0f0f0','#f0f0f0']},
+ 'tokyo-night':{bg:['#a3aed2','#769ff0','#394260','#212736','#1d2230'],fg:['#090c0c','#e3e5e5','#769ff0','#769ff0','#a0a9cb']},
+ ocean:{bg:['#7dcfff','#4f9fba','#2d6f88','#23475b','#182b3a'],fg:['#090c0c','#090c0c','#f0f0f0','#f0f0f0','#f0f0f0']},
+ sunset:{bg:['#ffcf70','#f59e6f','#dc718a','#8f5b78','#493447'],fg:['#090c0c','#090c0c','#090c0c','#f0f0f0','#f0f0f0']},
+ forest:{bg:['#a7c080','#83c092','#5f9f75','#3f6f55','#293f35'],fg:['#090c0c','#090c0c','#090c0c','#f0f0f0','#f0f0f0']},
+ candy:{bg:['#f5c2e7','#cba6f7','#89b4fa','#745f9a','#403a5c'],fg:['#090c0c','#090c0c','#090c0c','#f0f0f0','#f0f0f0']},
+ neon:{bg:['#39ff14','#00f5ff','#ff4fd8','#7a2cf3','#29134f'],fg:['#090c0c','#090c0c','#090c0c','#f0f0f0','#f0f0f0']}
+};
+const hue={model:350,thinking:300,context:220,five_hour:220,weekly:220,cache:160,cost:85};
+const labels={cwd:'路径',branch:'分支',model:'模型',thinking:'思考',context:'上下文',tokens:'Tokens',cost:'费用',five_hour:'五小时',weekly:'周额度',cache:'缓存',tools:'工具'};
+let rotation=0;
+const defaultTextColors={five_hour:'#ddf048',weekly:'#fab48c',model:'#aa79f2',thinking:'#aa79f2',context:'#a2daf4',tokens:'#a2daf4',cache:'#f85488',cost:'#ffeb38'};
+const textOverrides={},textEditors={};
+function normalizeHex(value){
+ const text=value.trim();
+ if(/^#[0-9a-f]{6}$/i.test(text))return text.toLowerCase();
+ if(/^#[0-9a-f]{3}$/i.test(text))return '#'+[...text.slice(1)].map(c=>c+c).join('').toLowerCase();
+ return undefined;
+}
+function createTextEditors(){
+ for(const [name,title] of Object.entries(labels)){
+  const field=document.createElement('div');field.className='text-field';
+  const label=document.createElement('label');label.htmlFor=`text-${name}`;label.textContent=title;
+  const picker=document.createElement('input');picker.type='color';picker.id=`picker-${name}`;picker.setAttribute('aria-label',`${title}取色器`);
+  const input=document.createElement('input');input.type='text';input.id=`text-${name}`;input.placeholder='主题默认';input.spellcheck=false;input.autocomplete='off';input.setAttribute('aria-label',`${title}文字色`);input.setAttribute('aria-invalid','false');
+  input.addEventListener('input',()=>{
+   const value=input.value.trim(),hex=normalizeHex(value);
+   input.setAttribute('aria-invalid',String(Boolean(value&&!hex)));
+   if(!value)delete textOverrides[name];else if(hex)textOverrides[name]=hex;
+   const invalid=Object.entries(textEditors).filter(([,e])=>e.input.getAttribute('aria-invalid')==='true').map(([key])=>labels[key]);
+   $('text-error').textContent=invalid.length?`${invalid.join('、')}：请输入有效的 #RGB 或 #RRGGBB；暂时保留上一次有效颜色。`:'';
+   if(!value||hex)render();
+  });
+  picker.addEventListener('input',()=>{input.value=picker.value;input.dispatchEvent(new Event('input'))});
+  textEditors[name]={input,picker};field.append(label,picker,input);$('text-grid').append(field);
+ }
+}
+function syncTextEditors(){
+ for(const [name,{input,picker}] of Object.entries(textEditors)){
+  const shown=document.querySelector(`#fixed [data-name="${name}"]`);
+  picker.value=textOverrides[name]??shown?.dataset.baseFg??'#f0f0f0';
+  input.title=textOverrides[name]?`手动颜色：${textOverrides[name].toUpperCase()}`:'留空：跟随主题默认文字色';
+ }
+}
+const canvas=document.createElement('canvas'),measure=canvas.getContext('2d');
+measure.font='20px Menlo, Consolas, "DejaVu Sans Mono", monospace';
+const cache=new Map();
+const toLinear=x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4;
+const toGamma=x=>x<=.0031308?12.92*x:1.055*x**(1/2.4)-.055;
+function rgb(hex){return [1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255)}
+function luminance(hex){const c=rgb(hex).map(toLinear);return .2126*c[0]+.7152*c[1]+.0722*c[2]}
+function ratio(a,b){const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
+function hexOf(c){return '#'+c.map(x=>Math.round(Math.max(0,Math.min(1,x))*255).toString(16).padStart(2,'0')).join('')}
+function oklch(L,C,H){
+ const a=C*Math.cos(H*Math.PI/180),b=C*Math.sin(H*Math.PI/180);
+ const l=(L+.3963377774*a+.2158037573*b)**3,m=(L-.1055613458*a-.0638541728*b)**3,s=(L-.0894841775*a-1.291485548*b)**3;
+ const linear=[4.0767416621*l-3.3077115913*m+.2309699292*s,-1.2684380046*l+2.6097574011*m-.3413193965*s,-.0041960863*l-.7034186147*m+1.707614701*s];
+ return {hex:hexOf(linear.map(toGamma)),inGamut:linear.every(x=>x>=-1e-7&&x<=1+1e-7)};
+}
+function fromHex(hex){
+ const [r,g,b]=rgb(hex).map(toLinear);
+ const l=Math.cbrt(.4122214708*r+.5363325363*g+.0514459929*b),m=Math.cbrt(.2119034982*r+.6806995451*g+.1073969566*b),s=Math.cbrt(.0883024619*r+.2817188376*g+.6299787005*b);
+ const L=.2104542553*l+.793617785*m-.0040720468*s,a=1.9779984951*l-2.428592205*m+.4505937099*s,b2=.0259040371*l+.7827717662*m-.808675766*s;
+ const C=Math.hypot(a,b2);
+ return {hex,L:Math.max(0,Math.min(1,L)),C:C<1e-6?0:C,H:C<1e-6?0:(Math.atan2(b2,a)*180/Math.PI+360)%360};
+}
+function fitColor(bg,H,C,target,adaptive,preferredL=.76){
+ const key=[bg,H,C,target,adaptive,preferredL].join('|');if(cache.has(key))return cache.get(key);
+ const original=oklch(preferredL,C,H);
+ let answer=original.inGamut&&(!adaptive||ratio(original.hex,bg)>=target)?{...original,L:preferredL,C,H}:undefined;
+ for(let cStep=0;cStep<=40&&!answer;cStep++){
+  const c=C*(1-cStep/40);
+  if(!adaptive){const v=oklch(preferredL,c,H);if(v.inGamut)answer={...v,L:preferredL,C:c,H};continue}
+  let best;
+  for(let i=0;i<=400;i++){
+   const L=i/400,v=oklch(L,c,H);
+   if(v.inGamut&&ratio(v.hex,bg)>=target&&(!best||Math.abs(L-preferredL)<Math.abs(best.L-preferredL)))best={...v,L,C:c,H};
+  }
+  answer=best;
+ }
+ if(!answer){const L=ratio('#000000',bg)>=ratio('#ffffff',bg)?0:1;answer={hex:L?'#ffffff':'#000000',L,C:0,H,inGamut:true}}
+ cache.set(key,answer);return answer;
+}
+function data(){
+ const alert=$('alerts').checked;
+ const list=[
+ ['cwd','action-roleplay'],['model','✱ gpt-5.6-sol'],['thinking','◈ medium'],
+ ['context',alert?'◔ 312K (84%)':'◔ 63K (17%)'],['cost','☉ $1.20 (sub)'],
+ ['branch','⎇ main ~27 ?3'],['tokens','§ ↑42K ↓3.2K'],
+ ['five_hour',alert?'◒ 82% (2h 15m)':'◒ 12% (2h 15m)'],['weekly',alert?'◑ 95% (4d 9h)':'◑ 19% (4d 9h)'],
+ ['cache',alert?'⌁ 35%':'⌁ 86%'],['tools','⌨ 等待输入']
+ ].map(([name,text])=>({name,text,alert:alert&&['context','five_hour','weekly','cache'].includes(name)}));
+ return [...list.slice(rotation),...list.slice(0,rotation)];
+}
+function layout(list,width,period){
+ const rows=[];let row=[],used=measure.measureText('░▒▓').width+12;
+ for(const item of list){
+  const w=measure.measureText(item.text).width+26;
+  if(row.length&&(($('cycle').checked&&row.length>=period)||used+w>width)){
+   rows.push(row);row=[];used=measure.measureText('░▒▓').width+12;
+  }
+  if(used+w>width)continue;
+  row.push(item);used+=w;
+ }
+ if(row.length)rows.push(row);return rows;
+}
+function renderPreview(id,bgs,adaptive){
+ const host=$(id);host.replaceChildren();host.style.background=$('dark').checked?'#171717':'#f5ecd7';
+ const width=Math.min(Number($('columns').value)*measure.measureText('M').width,host.clientWidth-36);
+ const rows=layout(data(),width,bgs.length),theme=$('theme').value,preset=presets[theme];
+ rows.forEach((items,rowIndex)=>{
+  const row=document.createElement('div');row.className='footer-row';row.dataset.row=rowIndex;
+  const lead=document.createElement('span');lead.className='lead';lead.textContent='░▒▓';lead.style.color=bgs[0];row.append(lead);
+  items.forEach((item,index)=>{
+   const pos=index%bgs.length,bg=bgs[pos];let fg=preset.fg[pos%preset.fg.length],info,wantedC;
+   if(textOverrides[item.name]){
+    const seed=fromHex(textOverrides[item.name]);wantedC=seed.C;
+    info=adaptive?fitColor(bg,seed.H,seed.C,Number($('contrast').value),true,seed.L):seed;fg=info.hex;
+   }else if(theme==='prism'&&item.name in hue){wantedC=Number($('chroma').value);info=fitColor(bg,hue[item.name],wantedC,Number($('contrast').value),adaptive);fg=info.hex}
+   const contrast=ratio(fg,bg),button=document.createElement('button');button.type='button';button.className='segment';button.textContent=item.text;
+   const displayFg=item.alert?bg:fg,displayBg=item.alert?fg:bg;
+   button.style.setProperty('--fg',displayFg);button.style.setProperty('--bg',displayBg);
+   Object.assign(button.dataset,{name:item.name,index:String(pos),baseFg:fg,fg:displayFg,bg:displayBg,contrast:String(contrast),alert:String(item.alert),...(info?{L:String(info.L),C:String(info.C),H:String(info.H)}:{})});
+   const details=`${labels[item.name]} · 文字 ${displayFg.toUpperCase()} / 背景 ${displayBg.toUpperCase()} · 对比度 ${contrast.toFixed(2)}:1`+(info?` · L ${info.L.toFixed(3)} / C ${info.C.toFixed(3)} / 色相 ${info.H}°`:'')+(info&&info.C<wantedC-1e-6?' · 为适配色域降低了彩度':'')+(adaptive&&info&&contrast<Number($('contrast').value)?' · 当前底色无法达到目标对比度':'')+(item.alert?' · 告警反转':'');
+   button.title=details;button.addEventListener('click',()=>{$('inspect').textContent=details});row.append(button);
+  });host.append(row);
+ });
+}
+function render(){
+ $('columns-out').value=$('columns').value;$('chroma-out').value=Number($('chroma').value).toFixed(2);$('contrast-out').value=Number($('contrast').value).toFixed(1);
+ const bgs=$('backgrounds').value.split(/[,，\s]+/).filter(Boolean);
+ if(!bgs.length||bgs.length>12||bgs.some(x=>!/^#[0-9a-f]{6}$/i.test(x))){$('error').textContent='请输入 1–12 个 #RRGGBB 背景色，用逗号分隔。';return}
+ $('error').textContent='';cache.clear();
+ renderPreview('fixed',bgs,false);renderPreview('adaptive',bgs,true);
+ const manual=Object.keys(textOverrides).length>0;
+ $('adaptive-caption').textContent=$('theme').value==='prism'?'色相不变，优先保留彩度':manual?'手动文字色参与明度调整；其余保留主题默认':'非 Prism 主题保留原文字配色；此处仅演示周期换行';
+ $('chroma').disabled=$('theme').value!=='prism';
+ $('contrast').disabled=$('theme').value!=='prism'&&!manual;
+ syncTextEditors();
+}
+function reset(){for(const name of Object.keys(textOverrides))delete textOverrides[name];Object.assign(textOverrides,defaultTextColors);for(const [name,{input}] of Object.entries(textEditors)){input.value=(textOverrides[name]??'').toUpperCase();input.setAttribute('aria-invalid','false')}$('text-error').textContent='';$('inspect').textContent='点击任一字段，查看色值、明度、彩度和对比度。';rotation=0;$('theme').value='prism';$('columns').value=140;$('cycle').checked=true;$('alerts').checked=false;$('dark').checked=false;$('chroma').value=.10;$('contrast').value=4;$('backgrounds').value=gray.join(', ');render()}
+for(const id of ['columns','cycle','alerts','dark','chroma','contrast','backgrounds'])$(id).addEventListener('input',render);
+$('theme').addEventListener('change',()=>{$('backgrounds').value=presets[$('theme').value].bg.join(', ');render()});
+$('rotate').addEventListener('click',()=>{rotation=(rotation+1)%11;render()});$('reset').addEventListener('click',reset);
+let resize;window.addEventListener('resize',()=>{clearTimeout(resize);resize=setTimeout(render,60)});
+window.demo={render,ratio,fitColor,fromHex,presets};createTextEditors();reset();window.__ready=true;
+</script>
+</body>
+</html>

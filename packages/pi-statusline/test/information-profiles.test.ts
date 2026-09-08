@@ -3,27 +3,33 @@ import { test } from "vitest";
 import { INFORMATION_PROFILES, inferInformationProfile } from "../src/information-profiles.js";
 
 test("information profiles expose curated segment sets in deterministic order", () => {
-	assert.deepEqual(INFORMATION_PROFILES.minimal, ["model", "cwd", "branch", "context"]);
+	assert.deepEqual(INFORMATION_PROFILES.minimal, ["cwd", "model", "context", "branch"]);
 	assert.deepEqual(INFORMATION_PROFILES.balanced, [
+		"cwd",
 		"model",
 		"thinking",
-		"cwd",
-		"branch",
-		"tools",
 		"context",
-		"time",
+		"cost",
+		"branch",
+		"tokens",
+		"five_hour",
+		"weekly",
+		"cache",
+		"tools",
 	]);
 	assert.deepEqual(INFORMATION_PROFILES.detailed, [
-		"provider",
+		"cwd",
 		"model",
 		"thinking",
-		"cwd",
-		"branch",
-		"tools",
 		"context",
-		"tokens",
-		"cache",
 		"cost",
+		"branch",
+		"tokens",
+		"five_hour",
+		"weekly",
+		"cache",
+		"tools",
+		"provider",
 		"time",
 	]);
 });

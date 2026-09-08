@@ -8,6 +8,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { sliceByColumn, visibleWidth } from "@earendil-works/pi-tui";
 import { sanitizeTerminalText } from "@narumitw/pi-tui-kit/terminal-text";
+import { codexFastIsEffective } from "./codex-fast.js";
 import { formatDirectoryPath } from "./directory.js";
 import {
 	type ExtensionStatusRuntime,
@@ -18,7 +19,6 @@ import { formatGitBranchValue, type GitStatusSummary } from "./git-status.js";
 import { renderPowerlineStatusline } from "./powerline.js";
 import {
 	LINE_BREAK_SEGMENT_NAME,
-	type PowerlineBlockName,
 	type RenderItem,
 	type RenderSegment,
 	type SegmentName,
@@ -26,6 +26,8 @@ import {
 	type TruncationDirection,
 } from "./types.js";
 import { type FooterUsageSummary, summarizeFooterUsage } from "./usage.js";
+import type { PricedUsageWindow, UsageRuntime } from "./usage-refresh.js";
+import { formatTimeRemaining, formatUsageWindow } from "./usage-windows.js";
 
 type ThinkingLevel = ReturnType<ExtensionAPI["getThinkingLevel"]>;
 export interface RuntimeState extends ExtensionStatusRuntime {
@@ -36,8 +38,10 @@ export interface RuntimeState extends ExtensionStatusRuntime {
 	uiPrompt?: { kind: UIPromptKind; title?: string };
 	thinkingLevel: ThinkingLevel;
 	gitStatus?: GitStatusSummary;
+	usage?: UsageRuntime;
 	requestRender?: () => void;
 }
+
 const GITHUB_PR_KEY = "github-pr";
 const GITHUB_PR_STATUS_KEYS = new Set([GITHUB_PR_KEY]);
 export function renderStatusline(
@@ -103,6 +107,13 @@ export function renderExtensionStatusline(
 	return wrapExtensionStatusline(status, width);
 }
 
+/** Whole minutes since the latest response; blank under a minute and for entries without a clock. */
+function formatIdleTime(latestAt: number | undefined): string | undefined {
+	if (latestAt === undefined) return undefined;
+	const minutes = Math.floor((Date.now() - latestAt) / 60_000);
+	return minutes >= 1 ? formatTimeRemaining(minutes) : undefined;
+}
+
 function buildSegment(
 	name: SegmentName,
 	ctx: ExtensionContext,
@@ -113,9 +124,9 @@ function buildSegment(
 ): RenderSegment | undefined {
 	switch (name) {
 		case "brand":
-			return segment(name, "π", config, "accent", "header", true);
+			return segment(name, "π", config, "accent", true);
 		case "provider":
-			return segment(name, ctx.model?.provider ?? "no-provider", config, "accent", "header");
+			return segment(name, ctx.model?.provider ?? "no-provider", config, "accent");
 		case "model": {
 			const presentation = config.segmentText.model;
 			const model = truncateModel(
@@ -124,26 +135,15 @@ function buildSegment(
 				presentation.truncationSymbol,
 				presentation.truncationDirection,
 			);
-			return segment(name, model, config, "accent", "header");
+			const fast = codexFastIsEffective(ctx.model, config.codexFastMode) ? " fast" : "";
+			return segment(name, `${model}${fast}`, config, "accent");
 		}
 		case "thinking":
-			return segment(
-				name,
-				runtime.thinkingLevel,
-				config,
-				thinkingColor(runtime.thinkingLevel),
-				"header",
-			);
+			return segment(name, runtime.thinkingLevel, config, thinkingColor(runtime.thinkingLevel));
 		case "branch": {
 			const branch = footerData.getGitBranch();
 			const pr = branch ? prContextFromStatuses(footerData.getExtensionStatuses()) : undefined;
-			return segment(
-				name,
-				formatGitBranchValue(branch, runtime.gitStatus, pr),
-				config,
-				"accent",
-				"git",
-			);
+			return segment(name, formatGitBranchValue(branch, runtime.gitStatus, pr), config, "accent");
 		}
 		case "cwd":
 			return segment(
@@ -151,58 +151,55 @@ function buildSegment(
 				formatDirectoryPath(ctx.cwd, runtime.homeDir, runtime.gitStatus?.root),
 				config,
 				"accent",
-				"directory",
 			);
 		case "tools": {
 			const activity = formatToolActivity(runtime);
-			return activity ? segment(name, activity, config, "accent", "runtime") : undefined;
+			return activity ? segment(name, activity, config, "accent") : undefined;
 		}
 		case "context": {
 			const usage = ctx.getContextUsage();
-			const percentage =
-				usage?.percent === null || usage?.percent === undefined
+			const percent = usage?.percent ?? undefined;
+			// The share is defined as tokens over the window, so a report carrying
+			// only the share still says how many tokens are in use.
+			const tokens =
+				usage?.tokens ??
+				(usage === undefined || percent === undefined
+					? undefined
+					: Math.round((percent / 100) * usage.contextWindow));
+			const value =
+				percent === undefined || tokens === undefined
 					? "?"
-					: `${usage.percent.toFixed(1)}%`;
-			const contextWindow = usage?.contextWindow ?? ctx.model?.contextWindow ?? 0;
+					: `${formatCount(tokens)} (${Math.round(percent)}%)`;
+			return segment(name, value, config, "accent", false, percentAlert(percent));
+		}
+		case "tokens":
 			return segment(
 				name,
-				`${percentage}/${formatCount(contextWindow)}`,
+				`↑${formatCount(usageSummary.input)} ↓${formatCount(usageSummary.output)}`,
 				config,
-				contextColor(usage?.percent),
-				"runtime",
+				"accent",
 			);
-		}
-		case "tokens": {
-			const value =
-				usageSummary.input === 0 && usageSummary.output === 0
-					? "tok 0"
-					: `↑${formatCount(usageSummary.input)} ↓${formatCount(usageSummary.output)}`;
-			return segment(name, value, config, "accent", "runtime");
-		}
 		case "cache": {
-			if (usageSummary.cacheRead === 0 && usageSummary.cacheWrite === 0) return undefined;
-			const values: string[] = [];
-			if (usageSummary.cacheRead > 0) values.push(`R${formatCount(usageSummary.cacheRead)}`);
-			if (usageSummary.cacheWrite > 0) values.push(`W${formatCount(usageSummary.cacheWrite)}`);
-			if (usageSummary.latestCacheHitRate !== undefined) {
-				values.push(`CH${usageSummary.latestCacheHitRate.toFixed(1)}%`);
-			}
-			return segment(name, values.join(" "), config, "accent", "runtime");
+			// Latest assistant response only: a session total goes stale and never recovers.
+			const hitRate = usageSummary.latestCacheHitRate;
+			if (hitRate === undefined) return undefined;
+			// Idle time decides whether that cache is still warm, so it belongs next to the rate.
+			const idle = formatIdleTime(usageSummary.latestAt);
+			const value = idle ? `${Math.round(hitRate)}% (${idle})` : `${Math.round(hitRate)}%`;
+			return segment(name, value, config, "accent", false, hitRate <= 50);
 		}
 		case "cost": {
 			const subscription = isSubscriptionBacked(ctx) ? " (sub)" : "";
-			return segment(
-				name,
-				`${usageSummary.cost.toFixed(usageSummary.cost >= 1 ? 2 : 3)}${subscription}`,
-				config,
-				"accent",
-				"meter",
-			);
+			return segment(name, `$${usageSummary.cost.toFixed(2)}${subscription}`, config, "accent");
 		}
+		case "five_hour":
+			return usageWindowSegment(name, runtime.usage?.fiveHour, config);
+		case "weekly":
+			return usageWindowSegment(name, runtime.usage?.weekly, config);
 		case "time":
-			return segment(name, formatTime(), config, "accent", "meter");
+			return segment(name, formatTime(), config, "accent");
 		case "turn":
-			return segment(name, `${runtime.turnCount}`, config, "accent", "meter");
+			return segment(name, `${runtime.turnCount}`, config, "accent");
 	}
 }
 
@@ -211,10 +208,37 @@ function segment(
 	value: string,
 	config: StatuslineConfig,
 	color: RenderSegment["color"],
-	block: PowerlineBlockName,
 	emphasis = false,
+	alert = false,
 ): RenderSegment {
-	return { name, text: formatConfiguredSegment(name, value, config), color, block, emphasis };
+	return {
+		name,
+		text: formatConfiguredSegment(name, value, config),
+		color,
+		emphasis,
+		...(alert ? { alert } : {}),
+	};
+}
+
+function usageWindowSegment(
+	name: SegmentName,
+	window: PricedUsageWindow | undefined,
+	config: StatuslineConfig,
+): RenderSegment | undefined {
+	if (!window) return undefined;
+	return segment(
+		name,
+		formatUsageWindow(window, window.windowDollars, Date.now()),
+		config,
+		"accent",
+		false,
+		percentAlert(window.usedPercent),
+	);
+}
+
+/** Context and subscription windows share one inclusive alert threshold. */
+export function percentAlert(percent: number | undefined): boolean {
+	return percent !== undefined && Number.isFinite(percent) && percent >= 80;
 }
 
 export function formatConfiguredSegment(
@@ -245,13 +269,6 @@ function thinkingColor(level: ThinkingLevel): ThemeColor {
 		default:
 			return "dim";
 	}
-}
-
-export function contextColor(percent: number | null | undefined): ThemeColor {
-	if (percent === null || percent === undefined) return "dim";
-	if (percent >= 90) return "error";
-	if (percent >= 70) return "warning";
-	return "success";
 }
 
 const MAX_UI_PROMPT_TITLE_CODE_POINTS = 256;
@@ -287,10 +304,10 @@ export function formatToolActivity(runtime: RuntimeState): string | undefined {
 	if (active.length > 0) {
 		const [name, count] = active[0] ?? ["tool", 1];
 		const suffix = count > 1 ? `×${count}` : active.length > 1 ? `+${active.length - 1}` : "";
-		return `⚙️ ${name}${suffix}`;
+		return `⚙ ${name}${suffix}`;
 	}
 
-	return runtime.isStreaming ? "💭 thinking" : undefined;
+	return runtime.isStreaming ? "◌ thinking" : undefined;
 }
 
 export function prLinkFromStatuses(statuses: ReadonlyMap<string, string>): string | undefined {
@@ -349,8 +366,8 @@ function isSubscriptionBacked(ctx: ExtensionContext): boolean {
 
 export function formatCount(value: number): string {
 	if (value < 1000) return `${value}`;
-	if (value < 1_000_000) return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)}k`;
-	return `${(value / 1_000_000).toFixed(1)}m`;
+	if (value < 1_000_000) return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)}K`;
+	return `${(value / 1_000_000).toFixed(1)}M`;
 }
 
 function formatTime(): string {
@@ -388,10 +405,19 @@ export function truncateModel(
 	}
 }
 
+const CLAUDE_MODEL_PATTERN =
+	/^(?:(?:global|apac|au|eu|us|us-east-\d|us-west-\d|eu-west-\d|eu-central-\d)\.)?(?:anthropic\.|azure_ai\/|bedrock\/|vertex_ai\/)?claude-(?:(?<family>opus|sonnet|haiku|fable|mythos)-(?<major>\d{1,2})(?:-(?<minor>\d))?|(?<oldMajor>\d{1,2})(?:-(?<oldMinor>\d))?-(?<oldFamily>opus|sonnet|haiku|fable|mythos))(?:[-@]\d{8})?(?:-v\d+:\d+)?(?:-latest)?$/iu;
+
+/**
+ * A Claude id collapses to its family and version ("Opus 5"); any other id is
+ * shown as the provider names it, since there is no family to name it by.
+ */
 export function shortenModel(model: string): string {
-	return model
-		.replace(/^claude-/, "")
-		.replace(/^gpt-/, "gpt ")
-		.replace(/-20\d{6}$/, "")
-		.replace(/-latest$/, "");
+	const groups = CLAUDE_MODEL_PATTERN.exec(model)?.groups;
+	if (!groups) return model;
+	const family = groups.family ?? groups.oldFamily ?? "";
+	const major = groups.major ?? groups.oldMajor ?? "";
+	const minor = groups.minor ?? groups.oldMinor;
+	const name = `${family.charAt(0).toUpperCase()}${family.slice(1).toLowerCase()}`;
+	return `${name} ${minor ? `${major}.${minor}` : major}`;
 }

@@ -7,16 +7,18 @@ Add a Powerline-style footer that works without setup and keeps important Pi, wo
 A representative uncolored layout:
 
 ```text
-░▒▓ 🤖 sonnet-4 🧠 high 📁 pi-extensions 🌿 main ~2 🪟 ctx 42.0%/200k 🕒 16:42
+░▒▓ ~/pi-extensions ⎇ main ~2 ✱ Sonnet 4 ◈ high ◔ 84K (42%) § ↑5.3K ↓259 ☉ $0.12 (sub) ◒ 12% (4h 45m) ◑ 8% ($3064) ⌁ 82%
 ```
 
 ## ✨ Features
 
-- Works immediately with a balanced default for model, thinking, workspace, Git, context, activity, and time.
+- Works immediately with a balanced default for workspace, Git, model, thinking, context, tokens, cost, subscription windows, cache hit rate, and activity.
+- Shows subscription usage windows with a reset countdown that alternates with the window's value at API prices, and inverts segment colors at 80% usage or 50% and lower cache hit rate.
 - Removes lower-priority segments before important information is clipped.
 - Shows when Pi is waiting for an extension UI prompt, streaming, or running tools.
-- Adds optional token, prompt-cache, provider usage, and cost details.
-- Offers three information levels, seven previewable palettes, and advanced custom layouts.
+- Adds optional provider, time, and turn details.
+- Offers three information levels, eight previewable palettes, and advanced custom layouts; backgrounds cycle by position. Prism adds field-bound text colors while preserving the original Mono palette.
+- Wraps a full row onto the next one by default instead of hiding segments.
 - Uses ANSI-256 palette colors when Pi's effective terminal capabilities disable true color.
 - Loads a generated split runtime to reduce Pi package startup work.
 
@@ -76,13 +78,13 @@ Selecting a level replaces only `segments` and preserves unrelated JSON fields.
 
 | Level | Included segments |
 | --- | --- |
-| **Minimal** | `model cwd branch context` |
-| **Balanced** (default) | `model thinking cwd branch tools context time` |
-| **Detailed** | `provider model thinking cwd branch tools context tokens cache cost time` |
+| **Minimal** | `cwd model context branch` |
+| **Balanced** (default) | `cwd model thinking context cost branch tokens five_hour weekly cache tools` |
+| **Detailed** | `cwd model thinking context cost branch tokens five_hour weekly cache tools provider time` |
 | **Custom** | Any other segment order, including explicit line breaks |
 
 The `tools` segment takes no space while idle.
-`cache` takes no space when Pi has reported no cache reads or writes.
+`cache` takes no space until Pi has reported prompt tokens; `five_hour` and `weekly` take no space until the provider has reported that window.
 
 ## 💬 Commands
 
@@ -102,16 +104,17 @@ Palette previews save on Enter and revert on Escape, but layout changes save imm
 
 ### Responsive fitting
 
-Each row keeps its configured segment order.
-If it is too wide, pi-statusline removes the lowest-priority segment, recomputes the powerline transitions, and repeats until the row fits.
+Each row keeps its configured segment order, and every theme starts a new row before the background ramp repeats. The default five-color ramps place at most five visible segments in a row.
+By default (`"overflow": "wrap"`) a row that is too wide continues on the next row; every new row starts the palette ramp again.
+With `"overflow": "drop"`, each cycle-sized group instead loses its lowest-priority segments until it fits. The cycle boundary still starts a new row.
 Retention priority is highest to lowest:
 
 ```text
-context model branch tools cwd thinking cost provider cache tokens time turn brand
+context model branch weekly tools five_hour cwd thinking cost provider cache tokens time turn brand
 ```
 
 Explicit `line_break` entries remain row boundaries.
-If the last remaining segment is itself wider than the row, that row renders empty rather than emitting an over-width line.
+A segment that is itself wider than the row is left out in either mode rather than emitting an over-width line.
 
 ### Directory, activity, Git, and PR state
 
@@ -126,20 +129,36 @@ If the last remaining segment is itself wider than the row, that row renders emp
 - Dirty counters are `⇡` ahead, `⇣` behind, `+` staged, `~` modified/deleted, `?` untracked, and `!`
   conflicts.
 - A linked or plain GitHub PR reference appears with the branch when possible, avoiding a duplicate extension status.
-- Context color changes to warning at 70% and error at 90%.
 - Git state is cached outside footer rendering and stale session results are ignored.
 
 ### Usage and context
 
-- `context` renders one-decimal current usage and the model window, such as `2.4%/272k`.
-  After compaction it can temporarily render `?/272k` until the next valid assistant response.
-- `tokens`, `cache`, and `cost` total every usage-bearing session entry, matching Pi's native footer.
+- `context` renders the tokens in use and their share of the window, such as `149K (40%)`.
+  After compaction it can temporarily render `?` until the next valid assistant response.
+  At 80% usage or higher, the segment swaps its foreground and background colors.
+- `tokens` and `cost` total every usage-bearing session entry, matching Pi's native footer.
   This includes assistant messages, nested-LLM tool results, compactions, and branch summaries, including abandoned branches retained in the session.
-- Cache tokens are `R<read>`, `W<write>`, and `CH<rate>`.
-  `R` and `W` are cumulative; `CH` uses only the latest assistant prompt: `cacheRead / (input + cacheRead + cacheWrite) * 100`.
-- Subscription-backed OAuth models and `kimi-coding` append `(sub)` to cost.
+- `cache` is the latest assistant response's prompt-cache hit rate: `cacheRead / (input + cacheRead + cacheWrite)` for that response, rounded to whole percent, followed by whole minutes since that response once a minute has passed, such as `82% (12m)`. A session total would be dominated by early cache writes and never recover, so it tracks the most recent turn instead, and the idle time says whether that cache is still warm. At 50% or lower, the segment swaps its foreground and background colors; until a response reports prompt tokens it stays hidden.
+- `cost` shows two decimals. Subscription-backed OAuth models and `kimi-coding` append `(sub)`.
   The dollar value is usage cost, not proof of an amount billed under a subscription.
+
+### Subscription windows
+
+- `five_hour` and `weekly` show the provider's subscription usage windows, classified by their length: a day or longer is `weekly`, anything shorter is `five_hour`.
+- The query goes to the provider's official usage endpoint with the same checks pi-usage applies: only consumer-subscription providers, never through a proxy or overridden base URL.
+  Answers are cached for five minutes. Failures keep an old reading only after revalidating the same account; changed or unknown credentials clear it. The usage menu shares this report and shows its timestamp and query errors.
+- Each window alternates every eight seconds between its reset countdown, `12% (4h 45m)`, and its value at API prices, `12% ($647)`.
+  The value scales the spend Pi recorded for that provider across every session since the window opened by the share of the window used, and appears once at least 1% is used.
+- At 80% usage or higher, the window swaps its foreground and background colors, just like context. All palettes use the same single-stage alert; thresholds use unrounded percentages, and rounded separators follow the displayed background.
 - Pi's public extension API does not expose the current auto-compaction toggle, so this footer cannot reliably show the native `(auto)` marker.
+
+### Usage controls
+
+`/usage` opens current subscription details, including independently labeled model quotas, with **Refresh usage**, an eligible Fast toggle, and Help. Refresh bypasses the shared five-minute cache. It does not query other accounts or redeem Codex resets.
+
+`/fast` toggles priority routing and saves `codexFastMode` in `pi-statusline.json` (default `false`). It uses more subscription allowance; changes affect only subsequent requests. Eligible models display `fast` after the model name. Both commands accept no arguments, support TUI/RPC, and reject print/JSON modes.
+
+Fast retains pi-usage's official `openai-codex-responses`/`https://chatgpt.com` checks and model list: GPT-5.4, GPT-5.5, GPT-5.6-Luna/Sol/Terra. Unsupported models and proxy endpoints cannot enable Fast. The original request-scoped cost correction avoids applying the multiplier twice. Settings changes are synchronous within one process, preserve unrelated fields, and are not cross-process locked; stale JSON-editor saves are rejected.
 
 ## ⚙️ Settings
 
@@ -151,7 +170,7 @@ A minimal customization selects a palette and a few segments:
 ```json
 {
   "palettePreset": "ocean",
-  "segments": ["model", "cwd", "branch", "context"]
+  "segments": ["cwd", "branch", "model", "context"]
 }
 ```
 

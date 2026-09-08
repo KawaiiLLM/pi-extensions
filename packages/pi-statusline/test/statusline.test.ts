@@ -19,7 +19,6 @@ import { consumeStatuslineSettingsNotice } from "../src/settings.js";
 import type { ExtensionStatusIconAliasMap } from "../src/statusline.js";
 import statusline, {
 	buildExtensionStatusIconAliases,
-	contextColor,
 	extensionColor,
 	formatCount,
 	formatExtensionStatus,
@@ -29,6 +28,7 @@ import statusline, {
 	npmPackageName,
 	parseGitRoot,
 	parseGitStatusPorcelain,
+	percentAlert,
 	prContextFromStatuses,
 	prLinkFromStatuses,
 	readGitStatus,
@@ -134,23 +134,23 @@ test("statusline renders PR context inline only when a branch is available", asy
 	);
 	try {
 		const inlineLines = footer.render(300);
-		assert.ok(inlineLines[0]?.includes(`🌿 feature (${link} · 2 failing)`));
-		assert.equal(inlineLines.length, 1);
+		assert.ok(inlineLines.some((line) => line.includes(`⎇ feature (${link} · 2 failing)`)));
+		assert.equal(inlineLines.length, 2);
 
 		const narrowLines = footer.render(20);
 		assert.match(narrowLines.slice(1).join(" "), /PR/);
 
 		branch = null;
 		const fallbackLines = footer.render(300);
-		assert.equal(fallbackLines.length, 2);
-		assert.match(fallbackLines[1] ?? "", /PR/);
-		assert.match(fallbackLines[1] ?? "", /checks failing/);
+		assert.equal(fallbackLines.length, 3);
+		assert.match(fallbackLines.at(-1) ?? "", /PR/);
+		assert.match(fallbackLines.at(-1) ?? "", /checks failing/);
 
 		branch = "feature";
 		statuses.set("github-pr", "PR #123: checks failing (2), approved, 5 comments");
 		const plainLines = footer.render(300);
-		assert.ok(plainLines[0]?.includes("🌿 feature (#123 · 2 failing)"));
-		assert.equal(plainLines.length, 1);
+		assert.ok(plainLines.some((line) => line.includes("⎇ feature (#123 · 2 failing)")));
+		assert.equal(plainLines.length, 2);
 	} finally {
 		footer.dispose();
 	}
@@ -223,7 +223,7 @@ test("statusline renders max thinking in the Tokyo Night footer", async () => {
 		},
 	);
 	try {
-		assert.match(footer.render(200)[0] ?? "", /🧠 max/);
+		assert.match(footer.render(200)[0] ?? "", /◈ max/);
 	} finally {
 		footer.dispose();
 	}
@@ -263,8 +263,8 @@ test("balanced default renders the model without a separate provider segment", a
 	);
 
 	const line = footer.render(200)[0] ?? "";
-	assert.doesNotMatch(line, /🔌 anthropic/);
-	assert.match(line, /🤖 sonnet-4/);
+	assert.doesNotMatch(line, /⇄ anthropic/);
+	assert.match(line, /✱ Sonnet 4/);
 	footer.dispose();
 });
 
@@ -606,11 +606,11 @@ test("formatToolActivity shows only active or streaming work", () => {
 
 	assert.equal(
 		formatToolActivity(runtime({ activeTools: new Map([["read", 2]]), isStreaming: false })),
-		"⚙️ read×2",
+		"⚙ read×2",
 	);
 	assert.equal(
 		formatToolActivity(runtime({ activeTools: new Map(), isStreaming: true })),
-		"💭 thinking",
+		"◌ thinking",
 	);
 	assert.equal(
 		formatToolActivity(runtime({ activeTools: new Map(), isStreaming: false })),
@@ -728,7 +728,7 @@ test("git status formatter omits clean markers", () => {
 		conflicts: 0,
 	});
 	assert.equal(formatGitStatusSummary(summary), "");
-	assert.equal(formatGitBranchText("main", summary), "🌿 main");
+	assert.equal(formatGitBranchText("main", summary), "⎇ main");
 });
 
 test("git branch text includes compact status before PR link", () => {
@@ -740,9 +740,9 @@ test("git branch text includes compact status before PR link", () => {
 			{ ahead: 1, behind: 0, staged: 3, modified: 0, untracked: 2, conflicts: 0 },
 			link,
 		),
-		`🌿 feature ⇡1 +3 ?2 (${link})`,
+		`⎇ feature ⇡1 +3 ?2 (${link})`,
 	);
-	assert.equal(formatGitBranchText(null, undefined), "🌿 no-git");
+	assert.equal(formatGitBranchText(null, undefined), "⎇ no-git");
 });
 
 test("statusline settings load extension icon overrides", () => {
@@ -1134,12 +1134,21 @@ test("long extension status lines wrap to terminal width without ellipsis", () =
 });
 
 test("statusline compact formatting helpers", () => {
-	assert.equal(contextColor(undefined), "dim");
-	assert.equal(contextColor(75), "warning");
-	assert.equal(formatCount(1530), "1.5k");
-	assert.equal(formatCount(1_200_000), "1.2m");
-	assert.equal(shortenModel("claude-sonnet-20241022"), "sonnet");
-	assert.equal(shortenModel("gpt-5.3-codex-latest"), "gpt 5.3-codex");
+	for (const percent of [undefined, NaN, Infinity, 0, 50, 79.9]) {
+		assert.equal(percentAlert(percent), false);
+	}
+	for (const percent of [80, 95, 100]) {
+		assert.equal(percentAlert(percent), true);
+	}
+	assert.equal(formatCount(1530), "1.5K");
+	assert.equal(formatCount(272_000), "272K");
+	assert.equal(formatCount(1_200_000), "1.2M");
+	assert.equal(shortenModel("claude-sonnet-4"), "Sonnet 4");
+	assert.equal(shortenModel("claude-opus-5-20260101"), "Opus 5");
+	assert.equal(shortenModel("claude-3-5-sonnet-20241022"), "Sonnet 3.5");
+	assert.equal(shortenModel("claude-sonnet-20241022"), "claude-sonnet-20241022");
+	assert.equal(shortenModel("gpt-5.6-sol"), "gpt-5.6-sol");
+	assert.equal(shortenModel("gpt-5.3-codex-latest"), "gpt-5.3-codex-latest");
 	assert.equal(npmPackageName("npm:@narumitw/pi-goal@0.4.1"), "@narumitw/pi-goal");
 	assert.equal(npmPackageName("npm:typescript@latest"), "typescript");
 });

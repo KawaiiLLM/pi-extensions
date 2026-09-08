@@ -15,6 +15,8 @@ export interface FooterUsageSummary {
 	cacheWrite: number;
 	cost: number;
 	latestCacheHitRate?: number;
+	/** When the latest assistant response landed, for the idle timer beside the hit rate. */
+	latestAt?: number;
 }
 
 export function summarizeFooterUsage(entries: readonly SessionEntry[]): FooterUsageSummary {
@@ -34,7 +36,9 @@ export function summarizeFooterUsage(entries: readonly SessionEntry[]): FooterUs
 			const cacheRead = usage.cacheRead ?? 0;
 			const cacheWrite = usage.cacheWrite ?? 0;
 			const promptTokens = input + cacheRead + cacheWrite;
-			totals.latestCacheHitRate = promptTokens > 0 ? (cacheRead / promptTokens) * 100 : undefined;
+			const rated = promptTokens > 0;
+			totals.latestCacheHitRate = rated ? (cacheRead / promptTokens) * 100 : undefined;
+			totals.latestAt = rated ? entry.message.timestamp : undefined;
 		} else if (entry.type === "message" && entry.message.role === "toolResult") {
 			usage = entry.message.usage;
 		} else if (entry.type === "compaction" || entry.type === "branch_summary") {

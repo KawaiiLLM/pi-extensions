@@ -22,7 +22,7 @@ test("footer usage includes every usage-bearing session entry and uses the lates
 	const entries = [
 		entry({
 			type: "message",
-			message: { role: "assistant", usage: usage(10, 2, 30, 5, 0.1) },
+			message: { role: "assistant", usage: usage(10, 2, 30, 5, 0.1), timestamp: 1_000 },
 		}),
 		entry({
 			type: "message",
@@ -32,7 +32,7 @@ test("footer usage includes every usage-bearing session entry and uses the lates
 		entry({ type: "branch_summary", usage: usage(1, 1, 1, 0, 0.04) }),
 		entry({
 			type: "message",
-			message: { role: "assistant", usage: usage(80, 4, 20, 0, 0.01) },
+			message: { role: "assistant", usage: usage(80, 4, 20, 0, 0.01), timestamp: 2_000 },
 		}),
 	];
 
@@ -46,6 +46,7 @@ test("footer usage includes every usage-bearing session entry and uses the lates
 			cacheWrite: 8,
 			cost: undefined,
 			latestCacheHitRate: 20,
+			latestAt: 2_000,
 		},
 	);
 	assert.ok(Math.abs(result.cost - 0.2) < Number.EPSILON);
@@ -66,6 +67,7 @@ test("a latest zero-prompt assistant clears the rate without clearing cumulative
 	assert.equal(result.cacheRead, 30);
 	assert.equal(result.cacheWrite, 5);
 	assert.equal(result.latestCacheHitRate, undefined);
+	assert.equal(result.latestAt, undefined);
 });
 
 test("sessions without cache activity retain zero cache totals and a zero latest rate", () => {
@@ -73,7 +75,7 @@ test("sessions without cache activity retain zero cache totals and a zero latest
 		summarizeFooterUsage([
 			entry({
 				type: "message",
-				message: { role: "assistant", usage: usage(25, 5, 0, 0, 0.01) },
+				message: { role: "assistant", usage: usage(25, 5, 0, 0, 0.01), timestamp: 5_000 },
 			}),
 		]),
 		{
@@ -83,6 +85,7 @@ test("sessions without cache activity retain zero cache totals and a zero latest
 			cacheWrite: 0,
 			cost: 0.01,
 			latestCacheHitRate: 0,
+			latestAt: 5_000,
 		},
 	);
 });
