@@ -114,3 +114,24 @@ test("an aborted scan stops rather than finishing the sum", async () => {
 		rmSync(root, { recursive: true, force: true });
 	}
 });
+
+test("a fork's copy of the history is charged once", async () => {
+	const root = mkdtempSync(join(tmpdir(), "pi-statusline-spend-"));
+	try {
+		const shared = JSON.stringify({
+			type: "message",
+			id: "a93fa05f",
+			timestamp: "2026-09-02T00:00:00Z",
+			message: { role: "assistant", provider: "openai-codex", usage: { cost: { total: 2 } } },
+		});
+		writeFileSync(join(root, "2026-09-02T00-00-00-000Z_main.jsonl"), shared);
+		writeFileSync(
+			join(root, "2026-09-02T00-01-00-000Z_fork.jsonl"),
+			[shared, reply("openai-codex", "2026-09-02T00:01:00Z", 0.5)].join("\n"),
+		);
+
+		assert.equal(await sumProviderSpend(root, "openai-codex", SINCE), 2.5);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});

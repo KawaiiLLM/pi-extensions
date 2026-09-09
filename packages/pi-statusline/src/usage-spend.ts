@@ -8,6 +8,9 @@ import { join } from "node:path";
  * append-only and named by start time, but a session opened before the window
  * can still hold replies inside it, so files are screened by mtime and entries
  * by their own timestamp.
+ *
+ * Forking a session copies its history into the new file, entry ids and all, so
+ * a reply is charged the first time it is seen and skipped everywhere after.
  */
 export async function sumProviderSpend(
 	sessionsDir: string,
@@ -16,6 +19,7 @@ export async function sumProviderSpend(
 	signal?: AbortSignal,
 ): Promise<number> {
 	let total = 0;
+	const charged = new Set<string>();
 	for (const file of await listSessionFiles(sessionsDir)) {
 		signal?.throwIfAborted();
 		let modifiedAt: number;
@@ -33,7 +37,15 @@ export async function sumProviderSpend(
 		}
 		for (const line of text.split("\n")) {
 			if (!line.includes('"assistant"')) continue;
-			total += entryCost(parseLine(line), providerId, sinceMs);
+			const entry = parseLine(line);
+			const cost = entryCost(entry, providerId, sinceMs);
+			if (cost === 0) continue;
+			const id = isRecord(entry) && typeof entry.id === "string" ? entry.id : undefined;
+			if (id !== undefined) {
+				if (charged.has(id)) continue;
+				charged.add(id);
+			}
+			total += cost;
 		}
 	}
 	return total;
