@@ -197,7 +197,7 @@ function buildSegment(
 			if (!today) return undefined;
 			// The share of today's budget spent says more than the dollars alone,
 			// and it is the reading the alert fires on.
-			const budget = dailyBudgetPercent(runtime.usage, today, Date.now());
+			const budget = dailyBudgetPercent(runtime.usage, today);
 			const suffix =
 				budget !== undefined
 					? ` (${Math.round(budget)}%)`

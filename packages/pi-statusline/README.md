@@ -142,7 +142,7 @@ A segment that is itself wider than the row is left out in either mode rather th
 - `cost` is what the current provider's replies have cost since local midnight, read from every session on disk rather than this session alone, such as `$12.40`. It stays hidden until that scan lands, and refreshes at the end of each turn and across midnight.
   The dollar value is usage cost, not proof of an amount billed under a subscription. Subscription-backed OAuth models and `kimi-coding` append `(sub)` when no daily budget is available.
 - With a weekly window for the same account, `cost` appends today's share of the day's budget instead, such as `$186.00 (93%)`, and inverts its colors once that share reaches 100%.
-  The budget is the quota left at the start of today spread over the days left in the window, so overspending tightens every later day rather than moving a line already crossed; both terms come from the current reading, so the line holds still for the whole day and an alert cannot lapse by waiting. The arithmetic stays in percent of the window, which keeps it defined before the first percent of the window is used.
+  The budget is a seventh of the weekly window, the same allowance every day regardless of what the rest of the week has spent. The arithmetic stays in percent of the window, which keeps it defined before the first percent of the window is used.
 
 ### Subscription windows
 
